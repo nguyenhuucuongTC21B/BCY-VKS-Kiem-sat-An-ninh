@@ -1,0 +1,41 @@
+# BCY-VKS BadUSB VID/PID Database
+# Format: VID,PID
+# VID bắt buộc (hex, 4 ký tự, viết hoa)
+# PID có thể để trống để match mọi PID của VID đó
+# Những VID sau đây là của chip MCU programmable hay được dùng cho BadUSB
+
+# Atmel (USB Rubber Ducky gốc)
+03EB,
+
+# Teensy (PJRC) - Rất hay được dùng làm BadUSB
+16C0,
+
+# Arduino (Atmega8/16U2) - có thể giả lập keyboard
+2341,
+2A03,
+,6867
+
+# Hak5 (Công ty phát triển USB Rubber Ducky)
+F00D,
+
+# Digispark (ATTiny85) - rất rẻ, phổ biến cho BadUSB
+16D0,0755
+
+# Raspberry Pi Pico (RP2040) - có thể giả lập HID keyboard
+2E8A,
+
+# STM32 (STM32F103 Blue Pill) - có thể giả lập HID
+1A86,
+
+# CH552/CH554 (Cheap USB MCU from WCH)
+4348,
+303A,
+
+# Microchip (PIC32) - đôi khi được dùng
+04D8,
+
+# FTDI (FT232) - có thể được lập trình làm HID
+0403,6001
+
+# Generic HID Keyboard giả lập
+0461,0010

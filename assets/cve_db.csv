@@ -1,0 +1,51 @@
+software,version,cve_id,cvss_score,summary
+windows smb,2017,CVE-2017-0144,8.1,EternalBlue - RCE qua SMBv1 (WannaCry)
+windows smb,2017,CVE-2017-0145,8.1,EternalBlue variant - MS17-010
+windows smb,2017,CVE-2017-0146,8.1,EternalBlue variant - MS17-010
+windows smb,2017,CVE-2017-0147,8.1,EternalBlue variant - MS17-010
+windows smb,2017,CVE-2017-0148,8.1,EternalBlue variant - MS17-010
+windows smb,2020,CVE-2020-0796,10.0,SMBGhost - RCE qua SMBv3 (Wormable)
+windows smb,2021,CVE-2021-24055,7.8,SMB NTLM authentication bypass
+windows rdp,2019,CVE-2019-0708,9.8,BlueKeep - RCE qua RDP (Wormable)
+windows rdp,2019,CVE-2019-1181,7.5,BlueKeep variant 1
+windows rdp,2019,CVE-2019-1182,7.5,BlueKeep variant 2
+windows rdp,2020,CVE-2020-0609,8.4,Remote Desktop Client RCE
+windows rdp,2020,CVE-2020-0610,8.4,Remote Desktop Client RCE
+windows rdp,2021,CVE-2021-34535,9.8,RDP RCE via RemoteFX
+windows dns,2021,CVE-2021-1732,7.8,Windows DNS Server RCE
+windows dns,2020,CVE-2020-1350,10.0,SigRed - Windows DNS Server RCE
+windows print spooler,2021,CVE-2021-1675,7.8,PrintNightmare LPE
+windows print spooler,2021,CVE-2021-34527,8.8,PrintNightmare RCE
+windows print spooler,2021,CVE-2021-36958,8.8,Print Spooler RCE
+windows win32k,2021,CVE-2021-1732,7.8,Win32k Elevation of Privilege
+windows win32k,2021,CVE-2021-33771,7.8,Win32k Elevation of Privilege
+windows mshtml,2021,CVE-2021-40444,7.8,MSHTML RCE via Office
+windows ntds,2020,CVE-2020-1472,10.0,Zerologon - AD Domain Controller takeover
+windows ldap,2020,CVE-2020-25705,7.5,LDAP RCE
+windows iis,2017,CVE-2017-7269,9.8,IIS WebDAV Buffer Overflow RCE
+windows iis,2020,CVE-2020-1501,7.5,IIS Privilege Elevation
+windows iis,2021,CVE-2021-31166,7.5,IIS HTTP Protocol Stack RCE
+windows rpc,2022,CVE-2022-26809,9.8,RPC RCE (Wormable)
+openssh,8.7,CVE-2016-10009,7.5,SSH Bypass Auth (Match)
+openssh,8.5,CVE-2019-6111,5.3,SSH Client Information Disclosure
+openssh,8.8,CVE-2018-15473,5.3,SSH Username Enumeration
+apache log4j,2.14,CVE-2021-44228,10.0,Log4Shell - RCE qua JNDI lookup
+apache log4j,2.15,CVE-2021-45046,9.0,Log4Shell variant
+apache log4j,2.16,CVE-2021-45105,7.5,Log4Shell DoS
+apache httpd,2.4.49,CVE-2021-41773,9.8,Apache Path Traversal RCE
+apache httpd,2.4.50,CVE-2021-42013,9.8,Apache Path Traversal RCE (variant)
+nginx,1.16,CVE-2019-9511,7.5,HTTP/2 Data Dribble DoS
+nginx,1.16,CVE-2019-9513,7.5,HTTP/2 Resource Loop DoS
+nginx,1.21,CVE-2021-23017,7.5,DNS Resolver Off-by-one
+mysql,5.7,CVE-2017-3302,7.5,MySQL Auth Bypass
+mysql,8.0,CVE-2019-2435,6.5,MySQL Server DoS
+postgresql,13.3,CVE-2021-32027,7.5,PostgreSQL Memory Corruption
+mongodb,4.0,CVE-2020-7929,7.5,MongoDB User Enumeration
+redis,6.0,CVE-2020-13692,7.5,Redis Lua Sandbox Escape
+vsftpd,3.0,CVE-2015-1419,7.5,vsftpd Config File Arbitrary Code Exec
+proftpd,1.3.5,CVE-2015-3076,7.5,ProFTPD mod_copy File Read
+filezilla,3.5,CVE-2021-43006,7.5,FileZilla Client RCE
+chrome,90,CVE-2021-30551,8.8,Chrome V8 Type Confusion RCE
+chrome,91,CVE-2021-30554,8.8,Chrome V8 Type Confusion RCE
+firefox,89,CVE-2021-29967,8.8,Firefox WebGL Buffer Overflow
+msedge,91,CVE-2021-34538,8.8,Edge Chromium RCE

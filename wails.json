@@ -1,0 +1,46 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "BCY-VKS",
+  "outputfilename": "BCY-VKS",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "BCY-VKS Team",
+    "email": "contact@bcy-vks.local"
+  },
+  "info": {
+    "productName": "BCY-VKS Ki\u1ec3m S\u00e1t An Ninh",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright \u00a9 2026 BCY-VKS",
+    "comments": "Offline Security Audit & Forensics Suite for Windows"
+  },
+  "wailsjsdir": "./frontend",
+  "version": "2",
+  "outputpath": "build/bin",
+  "trimpath": true,
+  "hiddenfile": false,
+  "assetdir": "frontend",
+  "reloaddir": "",
+  "icon": "build/appicon.png",
+  "nsis": {
+    "installerType": "singleFile",
+    "license": "",
+    "headerImage": "",
+    "sidebarImage": "",
+    "icon": "build/windows/icon.ico",
+    "instIcon": "build/windows/icon.ico",
+    "uninstIcon": "build/windows/icon.ico",
+    "checksumHeader": false,
+    "packageName": "BCY-VKS Setup",
+    "include": {
+      "license": false,
+      "header": false,
+      "sidebar": false
+    }
+  },
+  "windows": {
+    "icon": "build/windows/icon.ico"
+  }
+}

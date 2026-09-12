@@ -1,0 +1,82 @@
+# BCY-VKS Crack Signatures Database
+# Format: pattern|tool_name|version
+# pattern là chuỗi con trong tên file (lowercase) để so khớp
+# tool_name là tên công cụ để hiển thị trong Bảng 1
+# version (optional) là phiên bản phổ biến
+
+# KMS Tools
+kmspico|KMSpico|v10.x
+kmsauto|KMSAuto|v6.x
+kmsauto net|KMSAuto Net|v1.x
+kmsauto lite|KMSAuto Lite|v1.x
+kmsauto++|KMSAuto++|v1.x
+kms tools|KMS Tools (Ratiborus)|
+kms cleaner|KMS Cleaner|
+kms_VL_All|KMS_VL_All|
+kms_vl_all|KMS_VL_All|
+kms sps|KMS SPS|
+aact|AACT (KMSAuto alternative)|
+aact_portable|AACT Portable|
+
+# Microsoft Activation Scripts (MAS)
+mas_aio|Microsoft Activation Scripts (MAS)|
+mas-aio|Microsoft Activation Scripts (MAS)|
+mas 1.5|Microsoft Activation Scripts (MAS) v1.5|
+mas_1.5|Microsoft Activation Scripts (MAS) v1.5|
+mas_1.4|Microsoft Activation Scripts (MAS) v1.4|
+hwid|HWID Digital License Gen (MAS)|
+hwidgen|HWID Gen|
+hwid-gen|HWID Gen|
+hwid digital|HWID Digital License|
+kms38|KMS38 Activation|
+
+# Adobe crackers
+adobezii|Adobe Zii|
+adobe-zii|Adobe Zii|
+adobe zii|Adobe Zii|
+amtlib|AMT Emulator (Adobe)|
+amt emulator|AMT Emulator|
+universal adobe|Universal Adobe Patcher|
+uap|Universal Adobe Patcher|
+painter|Adobe Painter|
+adobe cc 2018|Adobe CC 2018 Crack|
+adobe cc 2019|Adobe CC 2019 Crack|
+adobe cc 2020|Adobe CC 2020 Crack|
+adobe cc 2021|Adobe CC 2021 Crack|
+genp|Adobe GenP|
+gen_p|Adobe GenP|
+adobegenp|Adobe GenP|
+
+# Windows Loaders
+windows loader|Windows Loader (Daz)|
+daz loader|Daz Loader|
+windows 7 loader|Windows 7 Loader|
+xtable|xRWindows|
+7loader|Windows 7 Loader|
+
+# Activation Bypass
+chew wga|Chew-WGA|
+chew7|Chew7|
+remove wat|RemoveWAT|
+removewat|RemoveWAT|
+winactivate|WinActivate|
+windowsactivator|Windows Activator|
+mstoolkit|MSToolKit|
+7tokenmanager|7TokenManager|
+
+# Office crackers
+office 2010 crack|Office 2010 Crack|
+office 2013 crack|Office 2013 Crack|
+office 2016 crack|Office 2016 Crack|
+office 2019 crack|Office 2019 Crack|
+office 365 crack|Office 365 Crack|
+office kms|Office KMS Activator|
+o2k7-kms|Office 2007 KMS|
+
+# Other
+ kms|KMS Activator|
+kmsnano|KMSnano|
+kmsnano_|KMSnano|
+activator.exe|Unknown Activator|
+a.exe|Unknown Activator (generic)|
+a_act|AACT|

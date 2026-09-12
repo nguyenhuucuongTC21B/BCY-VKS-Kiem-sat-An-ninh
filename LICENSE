@@ -1,0 +1,97 @@
+BCY-VKS - Kiểm Sát An Ninh - Source Code License
+=====================================================
+
+Copyright (c) 2026 BCY-VKS Team. All rights reserved.
+
+ĐỒNG Ý PHÁP LÝ
+---------------
+
+Bằng việc sử dụng, sao chép, sửa đổi, hoặc phân phối phần mềm này,
+bạn đồng ý với các điều khoản sau.
+
+1. CẤP QUYỀN SỬ DỤNG
+---------------------
+
+Phần mềm được cấp quyền cho cá nhân và tổ chức sử dụng nội bộ (internal use).
+Bạn được phép:
+  - Sử dụng phần mềm cho mục đích cá nhân hoặc tổ chức
+  - Nghiên cứu, sửa đổi mã nguồn
+  - Đóng góp lại cho repository chính thức qua Pull Request
+  - Build binary và phân phối nội bộ trong tổ chức của bạn
+
+2. GIỚI HẠN
+-----------
+
+Bạn KHÔNG được phép:
+  - Sử dụng phần mềm cho mục đích thương mại mà không có sự đồng ý
+    bằng văn bản của tác giả
+  - Bán phần mềm hoặc bất kỳ phần nào của nó
+  - Sử dụng tính năng Anti-Forensics để cản trở điều tra hình sự
+    đang được tiến hành bởi cơ quan chức năng
+  - Sử dụng phần mềm trên hệ thống không thuộc quyền sở hữu/quản lý
+    của bạn mà không có sự đồng ý của chủ hệ thống
+  - Xóa hoặc thay đổi các thông báo bản quyền trong mã nguồn
+
+3. TÍNH NĂNG NHẠY CẢM
+----------------------
+
+Phần mềm bao gồm tính năng "Anti-Forensics" (Wipe-Out mode) có khả năng:
+  - Xóa Registry Windows (USBSTOR, USB, MountedDevices, NetworkList)
+  - Xóa Event Logs (Security, System, Application)
+  - Xóa history trình duyệt (Chrome, Edge, Firefox)
+  - Purge RAM (ghi đè dữ liệu ngẫu nhiên lên bộ nhớ trống)
+
+Tính năng này CHỈ ĐƯỢC PHÉP sử dụng trong:
+  - Diễn tập an ninh mạng được cấp phép
+  - Trên hệ thống cá nhân của bạn
+  - Trong phòng thí nghiệm an ninh mạng
+
+Việc sử dụng ngoài phạm vi trên có thể vi phạm:
+  - Bộ luật Hình sự Việt Nam (Điều 292, Điều 388)
+  - Luật An ninh mạng Việt Nam 2018
+  - Luật pháp quốc gia nơi phần mềm được sử dụng
+
+4. KHÔNG BẢO HÀNH
+-----------------
+
+Phần mềm được cung cấp "như vốn có" (AS IS), không kèm theo bất kỳ
+bảo hành nào. Tác giả không chịu trách nhiệm cho:
+  - Thiệt hại trực tiếp, gián tiếp, ngẫu nhiên, đặc biệt
+  - Mất dữ liệu do sử dụng tính năng Anti-Forensics
+  - Hậu quả pháp lý phát sinh từ việc sử dụng sai mục đích
+  - Khả năng tương thích với môi trường cụ thể của bạn
+
+5. TRÁCH NHIỆM NGƯỜI DÙNG
+--------------------------
+
+Trách nhiệm pháp lý hoàn toàn thuộc về người sử dụng. Bạn phải tự đánh giá
+tính hợp pháp của việc sử dụng phần mềm trong bối cảnh pháp lý cụ thể của bạn.
+
+6. THƯ VIỆN BÊN THỨ 3
+----------------------
+
+Phần mềm sử dụng các thư viện mã nguồn mở sau, mỗi thư viện có license riêng:
+
+  - Wails v2                    MIT License
+  - Go standard library         BSD-3-Clause License
+  - gopsutil/v3                 MPL-2.0 License  
+  - go-ole                      Apache-2.0 License
+  - golang.org/x/sys            BSD-3-Clause License
+  - StackExchange/wmi           MIT License
+
+Các license của thư viện bên thứ 3 được giữ nguyên và có hiệu lực.
+
+7. BẢN QUYỀN
+------------
+
+Mã nguồn của BCY-VKS (trừ thư viện bên thứ 3) thuộc bản quyền của
+BCY-VKS Team.
+
+Mọi thắc mắc xin liên hệ qua GitHub Issues.
+
+-----------------------------------------------------
+
+Bằng việc clone, fork, hoặc sử dụng mã nguồn này, bạn xác nhận đã đọc,
+hiểu và đồng ý với các điều khoản trên.
+
+Ngày có hiệu lực: 01/09/2026

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BCY-VKS Kiểm Sát An Ninh</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Splash overlay - hiển thị khi app đang khởi động -->
+  <div id="splash-screen" class="splash-screen">
+    <div class="splash-content">
+      <div class="splash-spinner"></div>
+      <h2>ĐANG KHỞI ĐỘNG</h2>
+      <p>Đang nạp cấu hình hệ thống...</p>
+    </div>
+  </div>
+
+  <!-- Header chính thức với logo + tên cơ quan -->
+  <header class="gov-header">
+    <div class="gov-header-inner">
+      <div class="brand-block">
+        <img src="assets/logo-bcy.png" alt="Logo BCY" class="gov-logo" />
+        <div class="brand-text">
+          <div class="agency-name">BAN CƠ YẾU</div>
+          <div class="app-title">BCY-VKS · KIỂM SÁT AN NINH</div>
+          <div class="app-subtitle">Hệ thống Rà quét & Giám định Kỹ thuật số</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-scan" class="gov-btn gov-btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          RÀ QUÉT TOÀN BỘ
+        </button>
+        <div id="scan-status" class="scan-status status-idle">
+          <span class="status-dot"></span>
+          <span class="status-text">Sẵn sàng</span>
+        </div>
+      </div>
+    </div>
+    <!-- Progress bar -->
+    <div id="progress-bar-container" class="progress-bar-container hidden">
+      <div id="progress-message" class="progress-message">Đang khởi tạo...</div>
+      <div class="progress-bar-track">
+        <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%"></div>
+      </div>
+      <div id="progress-percent" class="progress-percent">0%</div>
+    </div>
+  </header>
+
+  <!-- Bảng dự báo thời gian quét (hiển thị ngay khi mở app) -->
+  <section class="estimate-panel" id="estimate-panel">
+    <div class="estimate-header">
+      <h3>DỰ BÁO THỜI GIAN QUÉT</h3>
+      <span class="estimate-total" id="estimate-total">Tổng: 12-52 giây</span>
+    </div>
+    <div class="estimate-table" id="estimate-table">
+      <!-- Sẽ được render tự động qua JS khi app khởi động -->
+    </div>
+  </section>
+
+  <!-- Stats dashboard (gọn, ít màu mè) -->
+  <section class="stats-row">
+    <div class="stat-tile">
+      <div class="stat-value" id="stat-crack">0</div>
+      <div class="stat-label">Bản quyền lậu</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-value" id="stat-ports">0</div>
+      <div class="stat-label">Cổng nguy hiểm</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-value" id="stat-cve">0</div>
+      <div class="stat-label">CVE CVSS≥7</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-value" id="stat-adapters">0</div>
+      <div class="stat-label">Card mạng</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-value" id="stat-usb">0</div>
+      <div class="stat-label">Thiết bị USB</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-value" id="stat-badusb">0</div>
+      <div class="stat-label">BadUSB</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-value" id="stat-keylogger">0</div>
+      <div class="stat-label">Keylogger</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-value" id="stat-duration">0.0s</div>
+      <div class="stat-label">Thời lượng</div>
+    </div>
+  </section>
+
+  <!-- Action buttons: 2 nút lệnh cao cấp -->
+  <section class="action-bar">
+    <div class="action-group">
+      <span class="action-label">NÚT LỆNH TƯƠNG TÁC</span>
+      <button id="btn-remediation-popup" class="gov-btn gov-btn-secondary" disabled>
+        Đề xuất · Pop-up
+      </button>
+      <button id="btn-remediation-html" class="gov-btn gov-btn-secondary" disabled>
+        Đề xuất · HTML
+      </button>
+      <button id="btn-remediation-docx" class="gov-btn gov-btn-secondary" disabled>
+        Đề xuất · Word
+      </button>
+      <div class="action-divider"></div>
+      <button id="btn-anti-forensics" class="gov-btn gov-btn-danger" disabled>
+        ⚠ PHÒNG THỦ · ANTI-FORENSICS
+      </button>
+    </div>
+  </section>
+
+  <!-- Tabs for 5 tables -->
+  <nav class="tabs-nav">
+    <button class="tab active" data-tab="tab1"><span class="tab-num">I</span> Bản quyền</button>
+    <button class="tab" data-tab="tab2"><span class="tab-num">II</span> Mạng & Pentest</button>
+    <button class="tab" data-tab="tab3"><span class="tab-num">III</span> Card mạng</button>
+    <button class="tab" data-tab="tab4"><span class="tab-num">IV</span> Ngoại vi</button>
+    <button class="tab" data-tab="tab5"><span class="tab-num">V</span> Mã độc</button>
+  </nav>
+
+  <!-- 5 tables -->
+  <main class="tables-container">
+    <section id="tab1" class="tab-pane active">
+      <div class="table-title-bar">
+        <h2>BẢNG I — Tình trạng Bản quyền & Tính hợp pháp Phần mềm</h2>
+        <span class="record-count" id="count-bang1">0 mục</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th>Tên phần mềm</th>
+              <th>Phiên bản</th>
+              <th>Product ID</th>
+              <th>Kênh cấp phép</th>
+              <th>BIOS OEM Key</th>
+              <th>Công cụ crack</th>
+              <th>Đường dẫn file</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="bang1"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab2" class="tab-pane">
+      <div class="table-title-bar">
+        <h2>BẢNG II — Dò quét Lỗ hổng, Mạng & Kiểm thử</h2>
+        <span class="record-count" id="count-bang2">0 mục</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th>Trạng thái Internet</th>
+              <th>IP / MAC</th>
+              <th>ISP</th>
+              <th>Lịch sử kết nối</th>
+              <th>Cổng mở</th>
+              <th>CVE / CVSS</th>
+              <th>Kết quả pentest</th>
+              <th>Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody id="bang2"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab3" class="tab-pane">
+      <div class="table-title-bar">
+        <h2>BẢNG III — Kiểm kê & Lịch sử Phần cứng Card Mạng</h2>
+        <span class="record-count" id="count-bang3">0 mục</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th>Loại Card</th>
+              <th>Vị trí</th>
+              <th>Tên thiết bị</th>
+              <th>Serial</th>
+              <th>MAC</th>
+              <th>Driver</th>
+              <th>SSID đã kết nối</th>
+              <th>Lần kết nối gần nhất</th>
+            </tr>
+          </thead>
+          <tbody id="bang3"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab4" class="tab-pane">
+      <div class="table-title-bar">
+        <h2>BẢNG IV — Kiểm kê & Lịch sử Thiết bị Ngoại vi</h2>
+        <span class="record-count" id="count-bang4">0 mục</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th>Loại thiết bị</th>
+              <th>Hãng & Model</th>
+              <th>Hardware ID</th>
+              <th>VID/PID</th>
+              <th>Ổ đĩa</th>
+              <th>Cắm lần đầu</th>
+              <th>Cắm lần cuối</th>
+              <th>Số lần</th>
+              <th>BadUSB</th>
+            </tr>
+          </thead>
+          <tbody id="bang4"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab5" class="tab-pane">
+      <div class="table-title-bar">
+        <h2>BẢNG V — Giám định Mã độc, Keylogger & An ninh Hệ thống</h2>
+        <span class="record-count" id="count-bang5">0 mục</span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th>Tên tiến trình</th>
+              <th>PID</th>
+              <th>Loại mã độc</th>
+              <th>Mức độ nguy hiểm</th>
+              <th>RAM</th>
+              <th>Đường dẫn file</th>
+              <th>C2 Server</th>
+              <th>Dấu vết xoá log</th>
+            </tr>
+          </thead>
+          <tbody id="bang5"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Pop-up đề xuất khắc phục -->
+  <div id="modal-popup" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-title">Đề xuất Xử lý Khắc phục</h2>
+        <button id="modal-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer">
+        <button id="modal-close-2" class="gov-btn gov-btn-secondary">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Anti-forensics confirm -->
+  <div id="modal-anti" class="modal hidden">
+    <div class="modal-content modal-danger">
+      <div class="modal-header modal-header-danger">
+        <h2>⚠ PHÒNG THỦ · ANTI-FORENSICS ⚠</h2>
+        <button id="anti-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="warning-box">
+          <p><strong>CẢNH BÁO:</strong> Nút này sẽ kích hoạt chế độ Wipe-Out và xóa toàn bộ dấu vết kỹ thuật số mà 5 nhóm quét trên có thể phát hiện:</p>
+          <ul>
+            <li>Xóa dấu vết bản quyền lậu (Registry KMS, Task Scheduler)</li>
+            <li>Xóa lịch sử kết nối Internet & NetworkList</li>
+            <li>Xóa history Chrome/Edge/Firefox, DNS cache</li>
+            <li>Xóa Registry USBSTOR/USB/MountedDevices (toàn bộ lịch sử USB)</li>
+            <li>Xóa Wireless Profiles (SSID từng kết nối)</li>
+            <li>Xóa Windows Event Logs (Security, System, Application)</li>
+            <li>Purge RAM (ghi đè bộ nhớ trống)</li>
+          </ul>
+          <p class="danger-text"><strong>Hành vi này có thể vi phạm pháp luật nếu không trong phạm vi diễn tập được cấp phép.</strong></p>
+          <p>Để xác nhận, nhập mã: <code>WIPE-CONFIRM-2026</code></p>
+        </div>
+        <input type="text" id="anti-confirm-input" placeholder="Nhập mã xác nhận" class="gov-input" />
+      </div>
+      <div class="modal-footer">
+        <button id="anti-cancel" class="gov-btn gov-btn-secondary">Hủy</button>
+        <button id="anti-confirm" class="gov-btn gov-btn-danger">KÍCH HOẠT WIPE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Wipe progress / results -->
+  <div id="modal-progress" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Nhật ký Phòng thủ</h2>
+        <button id="progress-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="progress-body"></div>
+      <div class="modal-footer">
+        <button id="progress-done" class="gov-btn gov-btn-secondary">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer chính thức -->
+  <footer class="gov-footer">
+    <span>BCY-VKS v1.0.0 · Single-EXE · Offline Operation</span>
+    <span class="footer-legal">Kiến trúc phần mềm: Huỳnh Thị Thu Mai - Phó Chánh văn phòng. Trưởng BP CĐS. Designer Theme: Nguyễn Thanh Tịnh- CV KTCC CY</span>
+	<span class="footer-legal"> @ Code & Developer: Nguyễn Hữu Cường - CV KTCC CY. Phone contact: 0905 6666 24.</span>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
