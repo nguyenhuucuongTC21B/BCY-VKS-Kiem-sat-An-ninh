@@ -1,0 +1,189 @@
+name: Build BCY-VKS
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    name: Build on Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify project structure
+        shell: pwsh
+        run: |
+          Write-Host "=== Project root contents ==="
+          Get-ChildItem -Force | Format-Table Name,Length,Mode
+          Write-Host ""
+          Write-Host "=== internal/ contents ==="
+          Get-ChildItem -Path internal -Recurse -ErrorAction SilentlyContinue | Format-Table FullName
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Show Go environment
+        shell: pwsh
+        run: |
+          Write-Host "GOPATH: $env:GOPATH"
+          Write-Host "GOROOT: $env:GOROOT"
+          go env GOPATH GOROOT GOMODCACHE CGO_ENABLED
+          go version
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          $wailsPath = Join-Path $env:GOPATH "bin\wails.exe"
+          if (Test-Path $wailsPath) {
+            Write-Host "wails.exe installed at: $wailsPath"
+            & $wailsPath version
+          } else {
+            Write-Host "ERROR: wails.exe NOT found"
+            exit 1
+          }
+
+      - name: Download Go dependencies
+        shell: pwsh
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run go vet
+        shell: pwsh
+        run: go vet ./...
+
+      - name: Build BCY-VKS.exe
+        shell: pwsh
+        run: |
+          $wailsPath = Join-Path $env:GOPATH "bin\wails.exe"
+          Write-Host "=== Method 1: Try wails build ==="
+          
+          & $wailsPath build -platform windows/amd64 -clean -trimpath
+          $wailsExitCode = $LASTEXITCODE
+          Write-Host "Wails build exit code: $wailsExitCode"
+          
+          $exePath = "build/bin/BCY-VKS.exe"
+          
+          if (Test-Path $exePath) {
+            $fileInfo = Get-Item $exePath
+            $sizeBytes = $fileInfo.Length
+            $sizeMB = $sizeBytes / 1048576
+            $sizeMB = [MATH]::Round($sizeMB, 2)
+            Write-Host "Wails build successful! Size: $sizeMB MB"
+          } else {
+            Write-Host "Wails build did not produce .exe, trying Method 2 (go build)..."
+            
+            $env:CGO_ENABLED = "1"
+            New-Item -ItemType Directory -Path "build/bin" -Force | Out-Null
+            
+            go build -tags "desktop,production" -trimpath -o "build/bin/BCY-VKS.exe" .
+            $goExitCode = $LASTEXITCODE
+            Write-Host "go build exit code: $goExitCode"
+            
+            if (Test-Path $exePath) {
+              $fileInfo = Get-Item $exePath
+              $sizeBytes = $fileInfo.Length
+              $sizeMB = $sizeBytes / 1048576
+              $sizeMB = [MATH]::Round($sizeMB, 2)
+              Write-Host "go build successful! Size: $sizeMB MB"
+            } else {
+              Write-Host "ERROR: Both methods failed"
+              Write-Host "Listing build/ contents:"
+              if (Test-Path build) {
+                Get-ChildItem -Path build -Recurse -Force -ErrorAction SilentlyContinue | Format-Table FullName
+              }
+              exit 1
+            }
+          }
+          
+          Write-Host ""
+          Write-Host "=== Final build/bin/ contents ==="
+          Get-ChildItem -Path build/bin -Force -ErrorAction SilentlyContinue | Format-Table Name,Length
+
+      - name: Verify embedded assets
+        shell: pwsh
+        run: |
+          $exe = "build/bin/BCY-VKS.exe"
+          if (Test-Path $exe) {
+            $fileInfo = Get-Item $exe
+            $sizeBytes = $fileInfo.Length
+            $sizeMB = $sizeBytes / 1048576
+            $sizeMB = [MATH]::Round($sizeMB, 2)
+            Write-Host "File: $exe | Size: $sizeMB MB"
+            
+            $bytes = [System.IO.File]::ReadAllBytes($exe)
+            $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+            if ($text -match "index.html") { Write-Host "OK: index.html embedded" } else { Write-Host "MISSING: index.html" }
+            if ($text -match "style.css") { Write-Host "OK: style.css embedded" } else { Write-Host "MISSING: style.css" }
+            if ($text -match "main.js") { Write-Host "OK: main.js embedded" } else { Write-Host "MISSING: main.js" }
+            if ($text -match "logo-bcy") { Write-Host "OK: logo-bcy.png embedded" } else { Write-Host "MISSING: logo-bcy.png" }
+            if ($text -match "crack_signatures") { Write-Host "OK: crack_signatures.txt embedded" } else { Write-Host "MISSING: crack_signatures.txt" }
+            if ($text -match "cve_db") { Write-Host "OK: cve_db.csv embedded" } else { Write-Host "MISSING: cve_db.csv" }
+            if ($text -match "badusb") { Write-Host "OK: badusb_vid_pid.txt embedded" } else { Write-Host "MISSING: badusb_vid_pid.txt" }
+            if ($text -match "wails") { Write-Host "OK: Wails framework linked" } else { Write-Host "MISSING: Wails framework" }
+          } else {
+            Write-Host "ERROR: File NOT found: $exe"
+          }
+
+      - name: Upload BCY-VKS.exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BCY-VKS-exe
+          path: build/bin/BCY-VKS.exe
+          if-no-files-found: warn
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download BCY-VKS.exe
+        uses: actions/download-artifact@v4
+        with:
+          name: BCY-VKS-exe
+          path: ./release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: BCY-VKS ${{ github.ref_name }}
+          body: |
+            # BCY-VKS ${{ github.ref_name }}
+
+            ## Download
+
+            - **BCY-VKS.exe** - Production binary
+
+            ## Install
+
+            1. Download `BCY-VKS.exe`
+            2. Right-click -> Run as Administrator
+            3. Click "RA QUET TOAN BO"
+
+            ## Legal notice
+
+            Anti-Forensics feature is for licensed security exercises only.
+          files: |
+            release/BCY-VKS.exe
+          draft: false
+          prerelease: false
