@@ -617,6 +617,20 @@ img { display: block; max-width: 100%; }
   color: var(--ink-400);
   font-style: italic;
 }
+/* Risk box - hộp đánh giá nguy cơ pháp lý trong popup */
+.risk-box {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #FAF5E6;
+  border-left: 3px solid #8B0000;
+  border-radius: 2px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-900);
+}
+.risk-box strong {
+  color: #8B0000;
+}
 
 /* ============================================================
    ACTION BAR

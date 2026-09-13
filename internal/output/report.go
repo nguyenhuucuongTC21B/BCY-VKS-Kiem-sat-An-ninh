@@ -100,9 +100,19 @@ func convertFromMain(result interface{}) *ScanResultWrapper {
 }
 
 // timestampFileName sinh tên file an toàn có timestamp
+// Lưu file vào CÙNG THƯ MỤC với file .exe (để user dễ tìm)
+// Fallback: nếu không lấy được exe path, dùng thư mục Documents
 func timestampFileName(prefix, ext string) string {
-        home, _ := os.UserHomeDir()
-        dir := filepath.Join(home, "Documents", "BCY-VKS-Reports")
+        dir := ""
+        // Lấy đường dẫn của file .exe đang chạy
+        if exePath, err := os.Executable(); err == nil {
+                dir = filepath.Dir(exePath)
+        }
+        if dir == "" {
+                // Fallback: thư mục Documents
+                home, _ := os.UserHomeDir()
+                dir = filepath.Join(home, "Documents", "BCY-VKS-Reports")
+        }
         _ = os.MkdirAll(dir, 0o755)
         stamp := time.Now().Format("20060102-150405")
         return filepath.Join(dir, fmt.Sprintf("%s-%s.%s", prefix, stamp, ext))

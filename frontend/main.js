@@ -304,7 +304,13 @@ function showStatDetail(statType) {
   
   switch (statType) {
     case 'crack':
-      title = `Chi tiết ${lastResult.bang1.length} phần mềm bản quyền`;
+      // Tách thành 2 nhóm: bất hợp pháp và hợp pháp
+      const illegalSW = (lastResult.bang1 || []).filter(r => r.legal === false);
+      const legalSW = (lastResult.bang1 || []).filter(r => r.legal !== false);
+      title = `Chi tiết ${lastResult.bang1.length} phần mềm bản quyền phát hiện`;
+      if (lastResult.bang1.length > 0) {
+        title += ` (${illegalSW.length} bất hợp pháp, ${legalSW.length} hợp pháp)`;
+      }
       html = renderCrackDetailList(lastResult.bang1);
       break;
     case 'ports':
@@ -352,21 +358,87 @@ function renderCrackDetailList(records) {
   if (!records || records.length === 0) {
     return '<div class="stat-detail-empty">Không phát hiện phần mềm bản quyền</div>';
   }
-  return '<ul class="stat-detail-list">' + records.map((r, i) => `
+  // Sắp xếp: bất hợp pháp lên đầu, hợp pháp xuống cuối
+  const sorted = [...records].sort((a, b) => {
+    if (a.legal === false && b.legal !== false) return -1;
+    if (a.legal !== false && b.legal === false) return 1;
+    return 0;
+  });
+  return '<ul class="stat-detail-list">' + sorted.map((r, i) => {
+    const risk = assessLicenseRisk(r);
+    return `
     <li>
       <span class="num">${i + 1}</span>
       <div class="main">
         <strong>${escapeHtml(r.software_name || '—')}</strong>
         ${r.legal === false ? '<span class="badge-sm" style="background:#dc143c;color:#fff;">BẤT HỢP PHÁP</span>' : '<span class="badge-sm" style="background:#2d7a3e;color:#fff;">HỢP PHÁP</span>'}
+        <span class="badge-sm" style="background:${risk.color};color:#fff;">${risk.level}</span>
         <div class="meta">
           Phiên bản: ${escapeHtml(r.version || '—')} | Product ID: ${escapeHtml(r.product_id || '—')}<br>
           Kênh: ${escapeHtml(r.licensing_channel || '—')} | OEM Key: ${escapeHtml(r.bios_oem_key || '—')}<br>
           ${r.crack_tool ? '⚠ Công cụ crack: ' + escapeHtml(r.crack_tool) : ''}
           ${r.crack_path ? '<br>   Path: ' + escapeHtml(r.crack_path) : ''}
         </div>
+        <div class="risk-box">
+          <strong>⚠ Đánh giá nguy cơ:</strong> ${risk.description}<br>
+          <strong>Căn cứ pháp lý:</strong> ${risk.legal}
+        </div>
       </div>
     </li>
-  `).join('') + '</ul>';
+  `}).join('') + '</ul>';
+}
+
+// assessLicenseRisk đánh giá nguy cơ pháp lý cho phần mềm bản quyền
+function assessLicenseRisk(r) {
+  if (r.legal === false) {
+    // Có crack tool hoặc KMS lậu
+    if (r.crack_tool && r.crack_tool.toLowerCase().includes('kms')) {
+      return {
+        level: 'NGUY HIỂM CAO',
+        color: '#8B0000',
+        description: 'Sử dụng công cụ crack KMS để kích hoạt bản quyền lậu vi phạm Luật Sở hữu trí tuệ, có thể bị phạt hành chính 50-100 triệu đồng.',
+        legal: 'Luật Sở hữu trí tuệ 2005 (sửa đổi 2009); Nghị định 22/2018/NĐ-CP; Luật An ninh mạng 2018 Điều 28.'
+      };
+    }
+    if (r.crack_tool && r.crack_tool.toLowerCase().includes('adobe')) {
+      return {
+        level: 'NGUY HIỂM CAO',
+        color: '#8B0000',
+        description: 'Sử dụng phần mềm Adobe crack vi phạm quyền sở hữu trí tuệ, có thể bị phạt hành chính hoặc truy cứu trách nhiệm hình sự.',
+        legal: 'Luật Sở hữu trí tuệ; Bộ luật Hình sự 2015 (sửa đổi 2017) Điều 225.'
+      };
+    }
+    if (r.crack_tool) {
+      return {
+        level: 'NGUY HIỂM CAO',
+        color: '#8B0000',
+        description: 'Phát hiện công cụ crack phần mềm: ' + r.crack_tool + '. Vi phạm bản quyền phần mềm.',
+        legal: 'Luật Sở hữu trí tuệ 2005; Nghị định 22/2018/NĐ-CP; BLHS Điều 225.'
+      };
+    }
+    // Có CVE nghiêm trọng (Chrome/Edge/Java/OpenSSL)
+    if (r.crack_tool && r.crack_tool.toLowerCase().includes('cve')) {
+      return {
+        level: 'NGUY HIỂM TRUNG BÌNH',
+        color: '#B8860B',
+        description: 'Phần mềm có lỗ hổng CVE nghiêm trọng chưa vá. Cần cập nhật ngay.',
+        legal: 'Luật An ninh mạng 2018 Điều 29 (bảo đảm an toàn thông tin); Luật Bảo vệ bí mật nhà nước 2018.'
+      };
+    }
+    return {
+      level: 'CẦN KIỂM TRA',
+      color: '#888',
+      description: 'Phần mềm có dấu hiệu bất hợp pháp, cần kiểm tra giấy phép.',
+      legal: 'Luật Sở hữu trí tuệ; quy định cấp phép phần mềm của cơ quan.'
+    };
+  }
+  // Hợp pháp
+  return {
+    level: 'AN TOÀN',
+    color: '#2d7a3e',
+    description: 'Phần mềm có bản quyền hợp pháp, không phát hiện dấu hiệu vi phạm.',
+    legal: 'Tuân thủ Luật Sở hữu trí tuệ 2005.'
+  };
 }
 
 function renderPortsDetailList(records) {
@@ -378,21 +450,36 @@ function renderPortsDetailList(records) {
   if (ports.length === 0) {
     return '<div class="stat-detail-empty">Không phát hiện cổng nguy hiểm nào đang mở ✓</div>';
   }
-  const portNames = {
-    '21': 'FTP', '22': 'SSH', '23': 'Telnet', '25': 'SMTP',
-    '80': 'HTTP', '135': 'MSRPC', '139': 'NetBIOS-SSN',
-    '445': 'SMB (EternalBlue)', '1433': 'MSSQL', '3306': 'MySQL',
-    '3389': 'RDP (BlueKeep)', '5900': 'VNC', '8080': 'HTTP-Alt',
+  const portInfo = {
+    '21': { name: 'FTP', risk: 'CAO', desc: 'Giao thức FTP truyền dữ liệu không mã hoá, có thể bị sniff bắt cắp thông tin', legal: 'Luật An ninh mạng 2018 Điều 28 (bảo đảm an toàn thông tin)' },
+    '22': { name: 'SSH', risk: 'TRUNG BÌNH', desc: 'SSH mở ra ngoài có thể bị brute-force attack', legal: 'Luật An ninh mạng 2018 Điều 29' },
+    '23': { name: 'Telnet', risk: 'RẤT CAO', desc: 'Telnet truyền dữ liệu clear text, dễ bị sniff', legal: 'Luật An ninh mạng 2018 Điều 28; Nghị định 90/2023/NĐ-CP' },
+    '25': { name: 'SMTP', risk: 'TRUNG BÌNH', desc: 'SMTP mở có thể bị spam relay', legal: 'Nghị định 14/2018/NĐ-CP về bưu chính' },
+    '80': { name: 'HTTP', risk: 'TRUNG BÌNH', desc: 'HTTP truyền clear text', legal: 'Luật An ninh mạng 2018 Điều 28' },
+    '135': { name: 'MSRPC', risk: 'CAO', desc: 'MSRPC mở có thể bị khai thác DCOM', legal: 'Luật An ninh mạng 2018 Điều 29' },
+    '139': { name: 'NetBIOS-SSN', risk: 'CAO', desc: 'NetBIOS chia sẻ file, dễ bị rò rỉ thông tin', legal: 'Luật An ninh mạng 2018 Điều 28' },
+    '445': { name: 'SMB (EternalBlue)', risk: 'NGUY HIỂM CỰC CAO', desc: 'Cổng 445 mở + SMBv1 có thể bị EternalBlue RCE → WannaCry ransomware → mất dữ liệu vĩnh viễn', legal: 'BLHS 2015 Điều 288 (Tội vi phạm quy định về bảo mật thông tin); Luật An ninh mạng 2018 Điều 28, 29' },
+    '1433': { name: 'MSSQL', risk: 'RẤT CAO', desc: 'Cơ sở dữ liệu MSSQL mở ra ngoài có thể bị trộm dữ liệu', legal: 'Luật An ninh mạng 2018 Điều 28; Luật Bảo vệ bí mật nhà nước 2018 Điều 8' },
+    '3306': { name: 'MySQL', risk: 'RẤT CAO', desc: 'MySQL mở ra ngoài, có thể bị dump database', legal: 'Luật An ninh mạng 2018 Điều 28' },
+    '3389': { name: 'RDP (BlueKeep)', risk: 'NGUY HIỂM CỰC CAO', desc: 'RDP mở có thể bị BlueKeep RCE → chiếm quyền điều khiển máy từ xa → mất toàn bộ quyền kiểm soát', legal: 'BLHS 2015 Điều 288, 290 (Tội vi phạm quy định về bảo mật thông tin, Tội phá rối hoạt động máy tính); Luật An ninh mạng 2018 Điều 28' },
+    '5900': { name: 'VNC', risk: 'CAO', desc: 'VNC mở có thể bị chiếm quyền điều khiển desktop', legal: 'BLHS 2015 Điều 290; Luật An ninh mạng 2018' },
+    '8080': { name: 'HTTP-Alt', risk: 'TRUNG BÌNH', desc: 'Cổng 8080 mở, có thể có webapp cần kiểm tra', legal: 'Luật An ninh mạng 2018 Điều 29' },
   };
   return '<ul class="stat-detail-list">' + ports.map((p, i) => {
     const port = p.trim();
-    const name = portNames[port] || 'Unknown';
+    const info = portInfo[port] || { name: 'Unknown', risk: 'KHÔNG XÁC ĐỊNH', desc: 'Cổng ít phổ biến, cần đánh giá thêm', legal: 'Luật An ninh mạng 2018' };
+    const riskColor = info.risk.includes('CỰC') ? '#8B0000' : (info.risk.includes('RẤT') ? '#dc143c' : (info.risk.includes('CAO') ? '#b8860b' : '#888'));
     return `
       <li>
         <span class="num">${i + 1}</span>
         <div class="main">
-          <strong>Cổng ${escapeHtml(port)}</strong> — ${escapeHtml(name)}
+          <strong>Cổng ${escapeHtml(port)}</strong> — ${escapeHtml(info.name)}
+          <span class="badge-sm" style="background:${riskColor};color:#fff;">${info.risk}</span>
           <div class="meta">Trạng thái: ĐANG MỞ trên máy này</div>
+          <div class="risk-box">
+            <strong>⚠ Đánh giá nguy cơ:</strong> ${info.desc}<br>
+            <strong>Căn cứ pháp lý:</strong> ${info.legal}
+          </div>
         </div>
       </li>
     `;
@@ -475,10 +562,15 @@ function renderBadUSBDetailList(records) {
       <div class="main">
         <strong>${escapeHtml(r.vendor_model || r.device_type || '—')}</strong>
         <span class="badge-sm" style="background:#dc143c;color:#fff;">BADUSB</span>
+        <span class="badge-sm" style="background:#8B0000;color:#fff;">NGUY HIỂM CỰC CAO</span>
         <div class="meta">
           VID/PID: ${escapeHtml(r.vid_pid || '—')}<br>
           Hardware ID: ${escapeHtml(r.hardware_id || '—')}<br>
-          ⚠ Thiết bị có khả năng giả lập bàn phím tấn công tự động (Keystroke Injection)
+        </div>
+        <div class="risk-box">
+          <strong>⚠ Đánh giá nguy cơ:</strong> Thiết bị BadUSB có khả năng giả lập bàn phím tấn công tự động (Keystroke Injection). Khi cắm vào máy, nó có thể tự gõ lệnh PowerShell/CMD, cài backdoor, mở cổng reverse shell, download mã độc. Đây là phương pháp tấn công vật lý cực kỳ nguy hiểm.<br>
+          <strong>Căn cứ pháp lý:</strong> Bộ luật Hình sự 2015 Điều 290 (Tội phá rối hoạt động máy tính); Luật An ninh mạng 2018 Điều 18, 28; Quy định về quản lý thiết bị ngoại vi trong cơ quan nhà nước.<br>
+          <strong>Hình thức xử lý:</strong> TRÁCH NHIỆM HÌNH SỰ: Phạt tù 01-07 năm (Điều 290 BLHS); Thu giữ thiết bị; Cảnh giác nội bộ cơ quan; Báo cáo Ban Cơ yếu.
         </div>
       </div>
     </li>
@@ -490,21 +582,57 @@ function renderKeyloggerDetailList(records) {
   if (keyloggers.length === 0) {
     return '<div class="stat-detail-empty">Không phát hiện Keylogger ✓</div>';
   }
-  return '<ul class="stat-detail-list">' + keyloggers.map((r, i) => `
+  return '<ul class="stat-detail-list">' + keyloggers.map((r, i) => {
+    const risk = assessMalwareRisk(r);
+    return `
     <li>
       <span class="num">${i + 1}</span>
       <div class="main">
         <strong>${escapeHtml(r.process_name || '—')}</strong>
         <span class="badge-sm" style="background:#dc143c;color:#fff;">PID ${r.pid || '?'}</span>
-        ${r.danger_level ? '<span class="badge-sm" style="background:#b8860b;color:#fff;">' + escapeHtml(r.danger_level) + '</span>' : ''}
+        ${r.danger_level ? '<span class="badge-sm" style="background:' + risk.color + ';color:#fff;">' + escapeHtml(r.danger_level) + '</span>' : ''}
         <div class="meta">
           Đường dẫn: ${escapeHtml(r.file_path || '—')}<br>
           RAM: ${r.running_in_ram ? 'ĐANG CHẠY' : 'Tắt'} | C2: ${escapeHtml(r.c2_server || '—')}<br>
           ${r.log_wipe_evidence ? '⚠ ' + escapeHtml(r.log_wipe_evidence) : ''}
         </div>
+        <div class="risk-box">
+          <strong>⚠ Đánh giá nguy cơ:</strong> ${risk.description}<br>
+          <strong>Căn cứ pháp lý:</strong> ${risk.legal}<br>
+          <strong>Hình thức xử lý:</strong> ${risk.liability}
+        </div>
       </div>
     </li>
-  `).join('') + '</ul>';
+  `}).join('') + '</ul>';
+}
+
+// assessMalwareRisk đánh giá nguy cơ pháp lý cho mã độc/keylogger
+function assessMalwareRisk(r) {
+  // Keylogger có C2 server đang chạy
+  if (r.c2_server && r.running_in_ram) {
+    return {
+      color: '#8B0000',
+      description: 'Keylogger ĐANG CHẠY trong RAM và có kết nối tới C2 server ' + r.c2_server + '. Dữ liệu gõ phím đang bị gửi đi real-time. Đây là tấn công gián điệp mạng nghiêm trọng, có thể làm rò rỉ bí mật nhà nước, mật khẩu, văn bản mật.',
+      legal: 'Bộ luật Hình sự 2015 (sửa đổi 2017) Điều 288 (Tội vi phạm quy định về bảo mật thông tin), Điều 289 (Tội đánh cắp thông tin), Điều 290 (Tội phá rối hoạt động máy tính); Luật An ninh mạng 2018 Điều 18, 28; Luật Bảo vệ bí mật nhà nước 2018.',
+      liability: 'TRÁCH NHIỆM HÌNH SỰ: Phạt tù từ 01 năm đến 07 năm (Điều 288 BLHS); Phạt tù từ 01 năm đến 12 năm nếu gây hậu quả nghiêm trọng (Điều 289 BLHS).'
+    };
+  }
+  // Keylogger chạy trong RAM nhưng chưa có C2
+  if (r.running_in_ram) {
+    return {
+      color: '#dc143c',
+      description: 'Keylogger ĐANG CHẠY trong RAM. Có thể đang ghi lại toàn bộ thao tác gõ phím của người dùng, có nguy cơ rò rỉ thông tin.',
+      legal: 'BLHS 2015 Điều 288, 289; Luật An ninh mạng 2018 Điều 28.',
+      liability: 'TRÁCH NHIỆM HÌNH SỰ: Phạt tù 01-07 năm (Điều 288); có thể bị kỷ luật công chức hoặc sa thải nếu vi phạm trong cơ quan nhà nước.'
+    };
+  }
+  // Keylogger có file nhưng không chạy
+  return {
+    color: '#b8860b',
+    description: 'Phát hiện file keylogger nhưng tiến trình KHÔNG chạy. Cần xoá file ngay và kiểm tra dấu vết hoạt động trước đó.',
+    legal: 'BLHS 2015 Điều 288 (chuẩn bị tội phạm); Luật An ninh mạng 2018 Điều 28.',
+    liability: 'TRÁCH NHIỆM HÀNH CHÍNH: Phạt tiền 20-50 triệu đồng (Nghị định 15/2020/NĐ-CP); Cảnh báo hoặc kỷ luật nếu trong cơ quan nhà nước.'
+  };
 }
 
 function renderResult(result) {
