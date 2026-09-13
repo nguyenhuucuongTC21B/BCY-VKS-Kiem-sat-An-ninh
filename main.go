@@ -53,11 +53,11 @@ type ScanEstimate struct {
 // (gọi ngay khi mở app để UI hiển thị bảng dự báo)
 func (a *App) GetScanEstimates() []ScanEstimate {
         return []ScanEstimate{
-                {"bang1", "Bản quyền & Crack Tools", 2, 8, "pending"},
-                {"bang2", "Mạng & Pentest", 5, 20, "pending"},
-                {"bang3", "Card mạng & Wi-Fi", 1, 4, "pending"},
-                {"bang4", "USB & Ngoại vi", 1, 5, "pending"},
-                {"bang5", "Mã độc & Memory", 3, 15, "pending"},
+                {"bang1", "Bản quyền & Crack Tools", 2, 15, "pending"},
+                {"bang2", "Mạng & Pentest", 3, 30, "pending"},
+                {"bang3", "Card mạng & Wi-Fi", 1, 5, "pending"},
+                {"bang4", "USB & Ngoại vi", 1, 8, "pending"},
+                {"bang5", "Mã độc & Memory", 3, 20, "pending"},
         }
 }
 
@@ -132,17 +132,19 @@ func (a *App) ScanAll() (*ScanResult, error) {
                 return res, nil
         }
 
-        a.emitProgress("license", "Đang quét bản quyền & công cụ crack (dự kiến 2-8s)...", 15)
-        a.emitProgress("network", "Đang quét cổng mạng & đối chiếu CVE (dự kiến 5-20s)...", 25)
-        a.emitProgress("hardware", "Đang kiểm kê card mạng & Wi-Fi (dự kiến 1-4s)...", 40)
-        a.emitProgress("peripheral", "Đang trích xuất lịch sử USB (dự kiến 1-5s)...", 55)
-        a.emitProgress("malware", "Đang giám định mã độc & keylogger (dự kiến 3-15s)...", 75)
+        a.emitProgress("license", "Đang quét bản quyền & công cụ crack (dự kiến 2-15s)...", 15)
+        a.emitProgress("network", "Đang quét cổng mạng & đối chiếu CVE (dự kiến 3-30s)...", 25)
+        a.emitProgress("hardware", "Đang kiểm kê card mạng & Wi-Fi (dự kiến 1-5s)...", 40)
+        a.emitProgress("peripheral", "Đang trích xuất lịch sử USB (dự kiến 1-8s)...", 55)
+        a.emitProgress("malware", "Đang giám định mã độc & keylogger (dự kiến 3-20s)...", 75)
 
         out := &ScanResult{}
         var wg sync.WaitGroup
 
-        // scanGroup chạy một nhóm quét với timeout 60 giây
-        // Nếu quá 60s, sẽ emit progress "timeout" và trả kết quả rỗng cho nhóm đó
+        // scanGroup chạy một nhóm quét với timeout "mềm" 180 giây
+        // Nếu quá 180s, emit progress "slow" để UI thông báo cho user,
+        // NHƯNG VẪN CHỜ goroutine hoàn tất để đảm bảo kết quả đầy đủ
+        // (tránh race condition: kết quả rỗng ở lần quét đầu)
         scanGroup := func(wg *sync.WaitGroup, groupID, doneMsg string, percent int, fn func() error) {
                 defer wg.Done()
                 done := make(chan struct{})
@@ -153,9 +155,13 @@ func (a *App) ScanAll() (*ScanResult, error) {
                 select {
                 case <-done:
                         a.emitProgress(groupID+"_done", doneMsg, percent)
-                case <-time.After(60 * time.Second):
-                        a.emitProgress(groupID+"_timeout", "⚠ Timeout nhóm "+groupID+" sau 60s", percent)
-                        a.writeAuditLog("SCAN_TIMEOUT", "Nhóm "+groupID+" timeout sau 60s")
+                case <-time.After(180 * time.Second):
+                        // Phát cảnh báo "đang chạy lâu" - KHÔNG return
+                        a.emitProgress(groupID+"_slow", "⚠ Nhóm "+groupID+" đang chạy lâu (>180s), vui lòng chờ...", percent)
+                        a.writeAuditLog("SCAN_SLOW", "Nhóm "+groupID+" chạy lâu hơn 180s, vẫn đang chờ")
+                        // CHỜ goroutine hoàn tất để có kết quả đầy đủ
+                        <-done
+                        a.emitProgress(groupID+"_done", "✓ "+groupID+" hoàn tất (chậm)", percent)
                 }
         }
 

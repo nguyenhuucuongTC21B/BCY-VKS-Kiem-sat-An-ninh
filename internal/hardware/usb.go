@@ -5,6 +5,7 @@ package hardware
 import (
         "golang.org/x/sys/windows/registry"
         "strings"
+        "time"
 )
 
 // scanCurrentPeripherals liệt kê thiết bị ngoại vi đang cắm
@@ -274,14 +275,143 @@ func extractVIDPIDStr(pnp string) string {
 }
 
 // readFirstArrival đọc thời điểm cắm lần đầu từ Properties\ContainerId\LastArrival
-// (lưu nhánh DeviceArrival)
+// readFirstArrival đọc thời điểm cắm lần đầu từ registry
+// Path: HKLM\SYSTEM\CurrentControlSet\Enum\<pnp>\Properties\{83da6326-...}\0083 (LastArrival)
+// hoặc lấy từ giá trị FirstArrivalDate trong nhánh Properties
 func readFirstArrival(pnp string) string {
-        // Implement thực: mở HKLM\SYSTEM\CurrentControlSet\Enum\<pnp>\Properties
-        //                 và lấy {83da6326-...}\83 (LastArrival) - filetime 8 byte
+        if pnp == "" {
+                return ""
+        }
+        // Thử đọc từ Properties\{83da6326-9a14-4a7e-9b9c-1d1c3e7e5c3a}\0083
+        // Đây là DeviceArrival timestamp (FILETIME 8 bytes)
+        propPath := `SYSTEM\CurrentControlSet\Enum\` + pnp + `\Properties`
+        k, err := registry.OpenKey(registry.LOCAL_MACHINE, propPath,
+                registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+        if err != nil {
+                return ""
+        }
+        defer k.Close()
+        
+        // Đọc các subkey có tên dạng GUID
+        subKeys, _ := k.ReadSubKeyNames(-1)
+        for _, sk := range subKeys {
+                // Tìm subkey có chứa "83da6326" (Device Properties GUID)
+                if !contains(strings.ToLower(sk), "83da6326") {
+                        continue
+                }
+                // Mở subkey này và tìm 0083 (LastArrival) hoặc 0084 (LastRemoval)
+                guidPath := propPath + `\` + sk
+                gk, err := registry.OpenKey(registry.LOCAL_MACHINE, guidPath,
+                        registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+                if err != nil {
+                        continue
+                }
+                entries, _ := gk.ReadSubKeyNames(-1)
+                gk.Close()
+                for _, entry := range entries {
+                        if entry == "0083" || entry == "LastArrival" || entry == "FirstArrival" {
+                                // Mở entry và đọc giá trị binary
+                                entryPath := guidPath + `\` + entry
+                                ek, err := registry.OpenKey(registry.LOCAL_MACHINE, entryPath,
+                                        registry.QUERY_VALUE|registry.WOW64_64KEY)
+                                if err != nil {
+                                        continue
+                                }
+                                // Đọc giá trị "00000000" hoặc default
+                                v, _, err := ek.GetBinaryValue("")
+                                ek.Close()
+                                if err != nil || len(v) < 8 {
+                                        // Thử GetBinaryValue("00000000")
+                                        ek2, err2 := registry.OpenKey(registry.LOCAL_MACHINE, entryPath,
+                                                registry.QUERY_VALUE|registry.WOW64_64KEY)
+                                        if err2 == nil {
+                                                v2, _, _ := ek2.GetBinaryValue("00000000")
+                                                _ = ek2.Close()
+                                                if len(v2) >= 8 {
+                                                        return filetimeToTime(v2[:8])
+                                                }
+                                        }
+                                        continue
+                                }
+                                return filetimeToTime(v[:8])
+                        }
+                }
+        }
         return ""
 }
 
 // readLastRemoval đọc thời điểm rút thiết bị lần cuối
 func readLastRemoval(pnp string) string {
+        if pnp == "" {
+                return ""
+        }
+        propPath := `SYSTEM\CurrentControlSet\Enum\` + pnp + `\Properties`
+        k, err := registry.OpenKey(registry.LOCAL_MACHINE, propPath,
+                registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+        if err != nil {
+                return ""
+        }
+        defer k.Close()
+        
+        subKeys, _ := k.ReadSubKeyNames(-1)
+        for _, sk := range subKeys {
+                if !contains(strings.ToLower(sk), "83da6326") {
+                        continue
+                }
+                guidPath := propPath + `\` + sk
+                gk, err := registry.OpenKey(registry.LOCAL_MACHINE, guidPath,
+                        registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+                if err != nil {
+                        continue
+                }
+                entries, _ := gk.ReadSubKeyNames(-1)
+                gk.Close()
+                for _, entry := range entries {
+                        if entry == "0084" || entry == "LastRemoval" {
+                                entryPath := guidPath + `\` + entry
+                                ek, err := registry.OpenKey(registry.LOCAL_MACHINE, entryPath,
+                                        registry.QUERY_VALUE|registry.WOW64_64KEY)
+                                if err != nil {
+                                        continue
+                                }
+                                v, _, err := ek.GetBinaryValue("")
+                                ek.Close()
+                                if err == nil && len(v) >= 8 {
+                                        return filetimeToTime(v[:8])
+                                }
+                                // Thử key "00000000"
+                                ek2, err2 := registry.OpenKey(registry.LOCAL_MACHINE, entryPath,
+                                        registry.QUERY_VALUE|registry.WOW64_64KEY)
+                                if err2 == nil {
+                                        v2, _, _ := ek2.GetBinaryValue("00000000")
+                                        _ = ek2.Close()
+                                        if len(v2) >= 8 {
+                                                return filetimeToTime(v2[:8])
+                                        }
+                                }
+                        }
+                }
+        }
         return ""
+}
+
+// filetimeToTime chuyển FILETIME 8 byte thành chuỗi thời gian RFC3339
+// FILETIME = số 100-nanosecond intervals từ 1601-01-01 UTC
+func filetimeToTime(b []byte) string {
+        if len(b) < 8 {
+                return ""
+        }
+        ft := uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+                uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
+        if ft == 0 {
+                return ""
+        }
+        // Chuyển FILETIME (100ns từ 1601) sang Unix epoch (ns từ 1970)
+        // 116444736000000000 = số 100ns từ 1601 đến 1970
+        unixNanos := int64(ft-116444736000000000) * 100
+        if unixNanos < 0 {
+                return ""
+        }
+        t := time.Unix(0, unixNanos)
+        return t.UTC().Format(time.RFC3339)
 }

@@ -26,6 +26,9 @@
 - [✨ Tính Năng](#-tính-năng)
 - [🏗️ Kiến Trúc Hệ Thống](#️-kiến-trúc-hệ-thống)
 - [📁 Cấu Trúc Thư Mục](#-cấu-trúc-thư-mục)
+- [🚀 Hướng Dẫn Upload Lên GitHub](#-hướng-dẫn-upload-lên-github)
+- [📦 Hướng Dẫn Cài Đặt Từ GitHub](#-hướng-dẫn-cài-đặt-từ-github)
+- [🛠️ Build Từ Mã Nguồn](#️-build-từ-mã-nguồn)
 - [📖 Hướng Dẫn Sử Dụng](#-hướng-dẫn-sử-dụng)
 - [🔧 Yêu Cầu Hệ Thống](#-yêu-cầu-hệ-thống)
 - [❓ Xử Lý Sự Cố](#-xử-lý-sự-cố)
@@ -195,6 +198,199 @@ BCY-VKS/
 
 ---
 
+## 🚀 Hướng Dẫn Upload Lên GitHub
+
+### Bước 1: Tạo Repository Trên GitHub
+
+1. Đăng nhập vào [github.com](https://github.com)
+2. Click nút **`+`** ở góc trên phải → chọn **New repository**
+3. Điền thông tin:
+   - **Repository name**: `BCY-VKS`
+   - **Description**: `Offline Security Audit & Forensics Suite for Windows - Go + Wails`
+   - **Visibility**: Chọn `Private` (vì phần mềm có tính năng nhạy cảm)
+   - **Initialize**: ❌ KHÔNG tick "Add a README", "Add .gitignore", "Choose license" (đã có sẵn trong project)
+4. Click **Create repository**
+
+### Bước 2: Push Mã Nguồn Lên GitHub Từ Command Line
+
+Mở **PowerShell** hoặc **Command Prompt** trong thư mục `BCY-VKS/`:
+
+```bash
+# 1. Khởi tạo Git repository local
+git init
+
+# 2. Thêm tất cả file vào staging
+git add .
+
+# 3. Commit đầu tiên
+git commit -m "Initial commit: BCY-VKS v1.0.0 - Offline Security Audit Suite
+
+- 5 nhóm quét: License, Network, Hardware, Peripheral, Malware
+- 5 bảng kết quả + 2 nút lệnh (Khắc phục & Anti-Forensics)
+- Single-EXE binary, fully offline, go:embed assets
+- Build: Go 1.22 + Wails v2.9.1
+- Cross-platform codebase (build tags windows/non-windows)"
+
+# 4. Đổi tên branch chính thành 'main'
+git branch -M main
+
+# 5. Thêm remote origin (thay USER bằng username GitHub của bạn)
+git remote add origin https://github.com/USER/BCY-VKS.git
+
+# 6. Push lên GitHub
+git push -u origin main
+```
+
+> 💡 **Lần đầu push**, GitHub sẽ hỏi username + Personal Access Token (PAT). Tạo PAT tại:
+> `Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token` với scope `repo`.
+
+### Bước 3: Tạo Release Đính Kèm File .exe (Tùy Chọn)
+
+Sau khi build xong file `BCY-VKS.exe`, bạn có thể tạo release để người dùng tải trực tiếp:
+
+```bash
+# Tag version
+git tag -a v1.0.0 -m "BCY-VKS v1.0.0 - Initial Release"
+git push origin v1.0.0
+```
+
+Vào GitHub → tab **Releases** → **Draft a new release** → Chọn tag `v1.0.0` → Đính kèm file `BCY-VKS.exe` và `BCY-VKS-Setup.exe`.
+
+### Bước 4: Cấu Hình `.gitignore` (Đã Sẵn Sàng)
+
+File `.gitignore` đã có sẵn trong project, sẽ tự động bỏ qua:
+- `build/` (binary output)
+- `*.exe`, `*.dll`, `*.so` (compiled binaries)
+- `vendor/` (Go vendor directory)
+- `.idea/`, `.vscode/` (IDE files)
+- `wailsjs/`, `frontend/wailsjs/` (Wails generated files)
+
+---
+
+## 📦 Hướng Dẫn Cài Đặt Từ GitHub
+
+### Phương Án 1: Tải Binary Sẵn (Dành Cho Người Dùng Cuối)
+
+> ⚡ **Nhanh nhất** — Không cần build, chỉ tải về và chạy.
+
+1. Vào trang repository: `https://github.com/USER/BCY-VKS/releases`
+2. Tải file `BCY-VKS-Setup.exe` (NSIS installer, ~12-18 MB)
+3. Right-click → **Run as Administrator**
+4. Làm theo wizard cài đặt (mặc định cài vào `C:\Program Files\BCY-VKS\`)
+5. Mở shortcut **BCY-VKS** trên Desktop → **Run as Administrator**
+6. Bấm nút **"RÀ QUÉT TOÀN BỘ"** ở góc phải topbar
+
+### Phương Án 2: Build Từ Mã Nguồn (Dành Cho Developer)
+
+#### Bước 1: Cài Đặt Yêu Cầu Hệ Thống
+
+Trước khi build, cài đặt các phần mềm sau trên máy Windows 10/11 x64:
+
+| Phần Mềm | Phiên Bản | Link Tải |
+|----------|-----------|----------|
+| **Go** | 1.22+ | [https://go.dev/dl/](https://go.dev/dl/) |
+| **Node.js** | 18 LTS+ | [https://nodejs.org/](https://nodejs.org/) |
+| **Wails CLI** | v2.9+ | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
+| **Git** | 2.40+ | [https://git-scm.com/](https://git-scm.com/) |
+| **WebView2** | Runtime | Có sẵn trên Win11, Win10 qua Windows Update |
+
+#### Bước 2: Clone Repository
+
+```bash
+# Clone repository về máy
+git clone https://github.com/USER/BCY-VKS.git
+cd BCY-VKS
+```
+
+#### Bước 3: Tải Go Dependencies
+
+```bash
+# Tự động tải tất cả dependencies được khai báo trong go.mod
+go mod download
+
+# Hoặc chạy tidy để cập nhật go.sum
+go mod tidy
+```
+
+#### Bước 4: Build Single-EXE
+
+**Cách A — Dùng script build.bat (khuyến nghị):**
+```cmd
+build.bat
+```
+
+**Cách B — Dùng Wails CLI trực tiếp:**
+```bash
+# Build single exe + NSIS installer
+wails build -platform windows/amd64 -clean -trimpath -nsis
+
+# Build tối ưu size (loại bỏ debug symbols)
+wails build -platform windows/amd64 -clean -trimpath -ldflags="-s -w" -nsis
+```
+
+#### Bước 5: Chạy Thử Trước Khi Build (Dev Mode)
+
+```bash
+# Chạy dev mode với hot-reload frontend
+wails dev
+# Sẽ mở cửa sổ WebView với debug console
+# Mọi thay đổi ở frontend/ sẽ tự động refresh
+```
+
+#### Bước 6: Kết Quả Build
+
+Sau khi build thành công, file output ở:
+
+```
+BCY-VKS/
+└── build/
+    └── bin/
+        ├── BCY-VKS.exe                    # Single exe (25-35 MB)
+        └── BCY-VKS-amd64-installer.exe   # NSIS installer (12-18 MB)
+```
+
+---
+
+## 🛠️ Build Từ Mã Nguồn
+
+### Quick Reference Build Commands
+
+```bash
+# === Khởi tạo môi trường dev lần đầu ===
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+wails doctor  # Kiểm tra môi trường
+
+# === Build production (single .exe) ===
+wails build -platform windows/amd64 -clean -nsis
+
+# === Build tối ưu size ===
+wails build -platform windows/amd64 -clean -trimpath -ldflags="-s -w" -nsis
+
+# === Dev mode (hot-reload) ===
+wails dev
+
+# === Cross-compile từ Linux/macOS (chỉ kiểm tra syntax, không tạo .exe chạy được) ===
+GOOS=windows GOARCH=amd64 go build -o BCY-VKS.exe .
+```
+
+### Build Output
+
+| File | Kích Thước | Mô Tả |
+|------|-----------|-------|
+| `BCY-VKS.exe` | 25-35 MB | Single executable, chạy được ngay không cần cài |
+| `BCY-VKS-amd64-installer.exe` | 12-18 MB | NSIS installer, có Start Menu shortcut + uninstaller |
+
+### Build Flags Quan Trọng
+
+| Flag | Tác Dụng |
+|------|----------|
+| `-clean` | Xóa cache build cũ trước khi build |
+| `-trimpath` | Loại bỏ đường dẫn tuyệt đối khỏi binary (security + reproducible build) |
+| `-ldflags="-s -w"` | Loại bỏ debug symbols + DWARF table, giảm ~30% size |
+| `-nsis` | Tạo thêm NSIS installer ngoài single .exe |
+| `-platform windows/amd64` | Cross-compile target Windows x64 |
+
+---
 
 ## 📖 Hướng Dẫn Sử Dụng
 
