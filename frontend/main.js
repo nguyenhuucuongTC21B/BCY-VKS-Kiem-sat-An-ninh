@@ -258,14 +258,253 @@ function formatDangerLevel(level) {
 
 function renderStats(stats) {
   if (!stats) return;
-  document.getElementById('stat-crack').textContent = stats.total_crack || 0;
-  document.getElementById('stat-ports').textContent = stats.open_ports || 0;
-  document.getElementById('stat-cve').textContent = stats.critical_cve || 0;
-  document.getElementById('stat-adapters').textContent = stats.adapters || 0;
-  document.getElementById('stat-usb').textContent = stats.peripherals || 0;
-  document.getElementById('stat-badusb').textContent = stats.badusb || 0;
-  document.getElementById('stat-keylogger').textContent = stats.keyloggers || 0;
-  document.getElementById('stat-duration').textContent = (stats.duration_sec || 0).toFixed(2) + 's';
+  
+  const tileValues = {
+    'stat-crack': stats.total_crack || 0,
+    'stat-ports': stats.open_ports || 0,
+    'stat-cve': stats.critical_cve || 0,
+    'stat-adapters': stats.adapters || 0,
+    'stat-usb': stats.peripherals || 0,
+    'stat-badusb': stats.badusb || 0,
+    'stat-keylogger': stats.keyloggers || 0,
+    'stat-duration': (stats.duration_sec || 0).toFixed(2) + 's',
+  };
+  
+  Object.entries(tileValues).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+    const tile = el ? el.closest('.stat-tile') : null;
+    if (tile) {
+      const numValue = parseInt(value, 10);
+      if (!isNaN(numValue) && numValue === 0 && id !== 'stat-duration') {
+        tile.classList.add('zero');
+        tile.classList.remove('alert');
+      } else if (!isNaN(numValue) && numValue > 0) {
+        tile.classList.remove('zero');
+        if (['stat-crack', 'stat-ports', 'stat-cve', 'stat-badusb', 'stat-keylogger'].includes(id)) {
+          tile.classList.add('alert');
+        }
+      }
+    }
+  });
+}
+
+// ============ Stat Detail Modal - popup khi click vào ô thống kê ============
+
+function showStatDetail(statType) {
+  if (!lastResult) {
+    alert('Chưa có dữ liệu quét. Vui lòng bấm nút "RÀ QUÉT TOÀN BỘ" trước.');
+    return;
+  }
+  
+  const titleEl = document.getElementById('stat-detail-title');
+  const bodyEl = document.getElementById('stat-detail-body');
+  let html = '';
+  let title = '';
+  
+  switch (statType) {
+    case 'crack':
+      title = `Chi tiết ${lastResult.bang1.length} phần mềm bản quyền`;
+      html = renderCrackDetailList(lastResult.bang1);
+      break;
+    case 'ports':
+      title = `Chi tiết ${countOpenPorts()} cổng mạng nguy hiểm đang mở`;
+      html = renderPortsDetailList(lastResult.bang2);
+      break;
+    case 'cve':
+      title = `Chi tiết CVE có CVSS ≥ 7.0`;
+      html = renderCVEDetailList(lastResult.bang2);
+      break;
+    case 'adapters':
+      title = `Chi tiết ${lastResult.bang3.length} card mạng phát hiện`;
+      html = renderAdaptersDetailList(lastResult.bang3);
+      break;
+    case 'usb':
+      title = `Chi tiết ${lastResult.bang4.length} thiết bị ngoại vi`;
+      html = renderUSBDetailList(lastResult.bang4);
+      break;
+    case 'badusb':
+      title = `Chi tiết thiết bị BadUSB phát hiện`;
+      html = renderBadUSBDetailList(lastResult.bang4);
+      break;
+    case 'keylogger':
+      title = `Chi tiết Keylogger phát hiện`;
+      html = renderKeyloggerDetailList(lastResult.bang5);
+      break;
+    default:
+      title = 'Chi tiết';
+      html = '<div class="stat-detail-empty">Không có dữ liệu chi tiết</div>';
+  }
+  
+  titleEl.textContent = title;
+  bodyEl.innerHTML = html;
+  openModal('modal-stat-detail');
+}
+
+function countOpenPorts() {
+  if (!lastResult || !lastResult.bang2 || lastResult.bang2.length === 0) return 0;
+  const ports = lastResult.bang2[0].open_ports || '';
+  if (!ports) return 0;
+  return ports.split(',').filter(p => p.trim()).length;
+}
+
+function renderCrackDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện phần mềm bản quyền</div>';
+  }
+  return '<ul class="stat-detail-list">' + records.map((r, i) => `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.software_name || '—')}</strong>
+        ${r.legal === false ? '<span class="badge-sm" style="background:#dc143c;color:#fff;">BẤT HỢP PHÁP</span>' : '<span class="badge-sm" style="background:#2d7a3e;color:#fff;">HỢP PHÁP</span>'}
+        <div class="meta">
+          Phiên bản: ${escapeHtml(r.version || '—')} | Product ID: ${escapeHtml(r.product_id || '—')}<br>
+          Kênh: ${escapeHtml(r.licensing_channel || '—')} | OEM Key: ${escapeHtml(r.bios_oem_key || '—')}<br>
+          ${r.crack_tool ? '⚠ Công cụ crack: ' + escapeHtml(r.crack_tool) : ''}
+          ${r.crack_path ? '<br>   Path: ' + escapeHtml(r.crack_path) : ''}
+        </div>
+      </div>
+    </li>
+  `).join('') + '</ul>';
+}
+
+function renderPortsDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không có dữ liệu mạng</div>';
+  }
+  const r = records[0];
+  const ports = (r.open_ports || '').split(',').filter(p => p.trim());
+  if (ports.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện cổng nguy hiểm nào đang mở ✓</div>';
+  }
+  const portNames = {
+    '21': 'FTP', '22': 'SSH', '23': 'Telnet', '25': 'SMTP',
+    '80': 'HTTP', '135': 'MSRPC', '139': 'NetBIOS-SSN',
+    '445': 'SMB (EternalBlue)', '1433': 'MSSQL', '3306': 'MySQL',
+    '3389': 'RDP (BlueKeep)', '5900': 'VNC', '8080': 'HTTP-Alt',
+  };
+  return '<ul class="stat-detail-list">' + ports.map((p, i) => {
+    const port = p.trim();
+    const name = portNames[port] || 'Unknown';
+    return `
+      <li>
+        <span class="num">${i + 1}</span>
+        <div class="main">
+          <strong>Cổng ${escapeHtml(port)}</strong> — ${escapeHtml(name)}
+          <div class="meta">Trạng thái: ĐANG MỞ trên máy này</div>
+        </div>
+      </li>
+    `;
+  }).join('') + '</ul>';
+}
+
+function renderCVEDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không có dữ liệu CVE</div>';
+  }
+  const r = records[0];
+  if (!r.cve_id) {
+    return '<div class="stat-detail-empty">Không phát hiện CVE có CVSS ≥ 7.0 ✓</div>';
+  }
+  return `<ul class="stat-detail-list">
+    <li>
+      <span class="num">1</span>
+      <div class="main">
+        <strong>${escapeHtml(r.cve_id)}</strong>
+        <span class="badge-sm" style="background:#dc143c;color:#fff;">CVSS ${r.cvss_score ? r.cvss_score.toFixed(1) : '?'}</span>
+        <div class="meta">${escapeHtml(r.notes || '—')}</div>
+        <div class="meta" style="margin-top:6px;"><strong>Kết quả pentest:</strong> ${escapeHtml(r.exploit_result || '—')}</div>
+      </div>
+    </li>
+  </ul>`;
+}
+
+function renderAdaptersDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện card mạng</div>';
+  }
+  return '<ul class="stat-detail-list">' + records.map((r, i) => `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.device_name || '—')}</strong>
+        <span class="badge-sm" style="background:#631017;color:#fff;">${escapeHtml(r.adapter_type || '—')}</span>
+        <div class="meta">
+          Loại: ${escapeHtml(r.adapter_type || '—')} | Vị trí: ${escapeHtml(r.connection_pos || '—')}<br>
+          MAC: ${escapeHtml(r.mac || '—')} | Driver: ${escapeHtml(r.driver_status || '—')}<br>
+          ${r.ssid_list ? 'SSID đã kết nối: ' + escapeHtml(r.ssid_list) : ''}
+          ${r.last_connect ? '<br>Lần gần nhất: ' + escapeHtml(r.last_connect) : ''}
+        </div>
+      </div>
+    </li>
+  `).join('') + '</ul>';
+}
+
+function renderUSBDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện thiết bị ngoại vi</div>';
+  }
+  return '<ul class="stat-detail-list">' + records.map((r, i) => `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.vendor_model || r.device_type || '—')}</strong>
+        ${r.badusb_warning ? '<span class="badge-sm" style="background:#dc143c;color:#fff;">BADUSB!</span>' : ''}
+        <div class="meta">
+          Loại: ${escapeHtml(r.device_type || '—')} | VID/PID: ${escapeHtml(r.vid_pid || '—')}<br>
+          Hardware ID: ${escapeHtml(r.hardware_id || '—')}<br>
+          Ổ đĩa: ${escapeHtml(r.drive_letter || '—')} | Số lần cắm: ${r.plug_count || 0}<br>
+          ${r.first_plug ? 'Lần đầu: ' + escapeHtml(r.first_plug) : ''}
+          ${r.last_plug ? ' | Lần cuối: ' + escapeHtml(r.last_plug) : ''}
+          ${r.recent_files_summary ? '<br><strong>Recent Files:</strong> ' + escapeHtml(r.recent_files_summary) : ''}
+        </div>
+      </div>
+    </li>
+  `).join('') + '</ul>';
+}
+
+function renderBadUSBDetailList(records) {
+  const badUSBs = (records || []).filter(r => r.badusb_warning);
+  if (badUSBs.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện thiết bị BadUSB ✓</div>';
+  }
+  return '<ul class="stat-detail-list">' + badUSBs.map((r, i) => `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.vendor_model || r.device_type || '—')}</strong>
+        <span class="badge-sm" style="background:#dc143c;color:#fff;">BADUSB</span>
+        <div class="meta">
+          VID/PID: ${escapeHtml(r.vid_pid || '—')}<br>
+          Hardware ID: ${escapeHtml(r.hardware_id || '—')}<br>
+          ⚠ Thiết bị có khả năng giả lập bàn phím tấn công tự động (Keystroke Injection)
+        </div>
+      </div>
+    </li>
+  `).join('') + '</ul>';
+}
+
+function renderKeyloggerDetailList(records) {
+  const keyloggers = (records || []).filter(r => r.type === 'Keylogger');
+  if (keyloggers.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện Keylogger ✓</div>';
+  }
+  return '<ul class="stat-detail-list">' + keyloggers.map((r, i) => `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.process_name || '—')}</strong>
+        <span class="badge-sm" style="background:#dc143c;color:#fff;">PID ${r.pid || '?'}</span>
+        ${r.danger_level ? '<span class="badge-sm" style="background:#b8860b;color:#fff;">' + escapeHtml(r.danger_level) + '</span>' : ''}
+        <div class="meta">
+          Đường dẫn: ${escapeHtml(r.file_path || '—')}<br>
+          RAM: ${r.running_in_ram ? 'ĐANG CHẠY' : 'Tắt'} | C2: ${escapeHtml(r.c2_server || '—')}<br>
+          ${r.log_wipe_evidence ? '⚠ ' + escapeHtml(r.log_wipe_evidence) : ''}
+        </div>
+      </div>
+    </li>
+  `).join('') + '</ul>';
 }
 
 function renderResult(result) {
@@ -516,6 +755,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('anti-confirm').addEventListener('click', callAntiForensics);
   document.getElementById('progress-close').addEventListener('click', () => closeModal('modal-progress'));
   document.getElementById('progress-done').addEventListener('click', () => closeModal('modal-progress'));
+  
+  // Stat detail modal close buttons
+  document.getElementById('stat-detail-close').addEventListener('click', () => closeModal('modal-stat-detail'));
+  document.getElementById('stat-detail-done').addEventListener('click', () => closeModal('modal-stat-detail'));
+  
+  // Click vào stat tile để xem chi tiết
+  document.querySelectorAll('.stat-tile[data-stat]').forEach(tile => {
+    tile.addEventListener('click', () => {
+      const statType = tile.getAttribute('data-stat');
+      showStatDetail(statType);
+    });
+  });
 
   // Enter key để xác nhận anti-forensics
   document.getElementById('anti-confirm-input').addEventListener('keypress', (e) => {

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <g transform="translate(200 200)" fill="none" stroke="#7A1010">
+
+    <!-- Vòng ngoài cùng - viền đôi -->
+    <circle r="196" stroke-width="1.5"/>
+    <circle r="189" stroke-width="0.7"/>
+
+    <!-- Vòng chấm ngoài (36 chấm) -->
+    <circle r="180" stroke-width="4.5"
+            stroke-dasharray="0.1 31" stroke-linecap="round"/>
+
+    <!-- Vòng tròn phân cách -->
+    <circle r="170" stroke-width="0.8"/>
+
+    <!-- Vòng răng cưa — 24 tam giác nhọn quay vào tâm -->
+    <g fill="#7A1010" stroke="none">
+      <path d="M-6-160L0-142L6-160Z"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(15)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(30)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(45)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(60)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(75)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(90)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(105)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(120)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(135)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(150)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(165)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(180)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(195)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(210)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(225)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(240)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(255)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(270)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(285)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(300)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(315)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(330)"/>
+      <path d="M-6-160L0-142L6-160Z" transform="rotate(345)"/>
+    </g>
+
+    <!-- Vòng tròn phân cách -->
+    <circle r="138" stroke-width="0.8"/>
+    <circle r="133" stroke-width="0.5"/>
+
+    <!-- Vòng chim lạc — 18 cánh chim cách điệu, quay đều -->
+    <g stroke="#7A1010" stroke-width="2.2" stroke-linecap="round"
+       stroke-linejoin="round" fill="none">
+      <path d="M-14-116L-4-126L4-122L14-118"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(20)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(40)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(60)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(80)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(100)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(120)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(140)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(160)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(180)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(200)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(220)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(240)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(260)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(280)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(300)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(320)"/>
+      <path d="M-14-116L-4-126L4-122L14-118" transform="rotate(340)"/>
+    </g>
+
+    <!-- Vòng tròn phân cách -->
+    <circle r="105" stroke-width="0.8"/>
+
+    <!-- Vòng chấm tròn nhỏ bên trong (24 chấm) -->
+    <circle r="98" stroke-width="4"
+            stroke-dasharray="0.1 25.6" stroke-linecap="round"/>
+
+    <!-- Vòng tròn trong -->
+    <circle r="86" stroke-width="0.8"/>
+    <circle r="82" stroke-width="0.5"/>
+
+    <!-- Ngôi sao trung tâm 12 cánh + tròn giữa -->
+    <path d="M0-72L11-22L60-38L22-11L72 0L22 11L60 38L11 22L0 72
+             L-11 22L-60 38L-22 11L-72 0L-22-11L-60-38L-11-22Z"
+          fill="#7A1010" stroke="none"/>
+    <circle r="16" fill="#7A1010" stroke="none"/>
+
+  </g>
+</svg>
