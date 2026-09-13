@@ -146,7 +146,7 @@ function renderBang1(records) {
 function renderBang2(records) {
   const tbody = document.getElementById('bang2');
   if (!records || records.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-row">Chưa có dữ liệu mạng. Nhấn nút "RÀ QUÉT TOÀN BỘ" để bắt đầu.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-row">Chưa có dữ liệu mạng. Nhấn nút "RÀ QUÉT TOÀN BỘ" để bắt đầu.</td></tr>';
     document.getElementById('count-bang2').textContent = '0 mục';
     return;
   }
@@ -157,11 +157,13 @@ function renderBang2(records) {
       <td><span class="badge ${r.internet_status === 'Connected' ? 'badge-green' : 'badge-gray'}">${escapeHtml(r.internet_status)}</span></td>
       <td class="cell-mono">${escapeHtml(r.current_ip)}<br><span class="cell-muted">${escapeHtml(r.current_mac)}</span></td>
       <td>${escapeHtml(r.isp)}</td>
-      <td><pre class="cell-mono" style="white-space:pre-wrap;max-width:280px;font-size:10px;margin:0;font-family:Consolas,monospace;">${escapeHtml(r.connection_history)}</pre></td>
       <td class="cell-mono">${escapeHtml(r.open_ports || '—')}</td>
       <td>${formatCVSS(r.cvss_score, r.cve_id)}</td>
+      <td><pre class="cell-mono" style="white-space:pre-wrap;max-width:220px;font-size:10px;margin:0;font-family:Consolas,monospace;">${escapeHtml(r.dns_cache || '—')}</pre></td>
+      <td><pre class="cell-mono" style="white-space:pre-wrap;max-width:220px;font-size:10px;margin:0;font-family:Consolas,monospace;">${escapeHtml(r.browser_history || '—')}</pre></td>
+      <td><pre class="cell-mono" style="white-space:pre-wrap;max-width:200px;font-size:10px;margin:0;font-family:Consolas,monospace;">${escapeHtml(r.lan_config || '—')}</pre></td>
+      <td><pre class="cell-mono" style="white-space:pre-wrap;max-width:200px;font-size:10px;margin:0;font-family:Consolas,monospace;">${escapeHtml(r.document_links || '—')}</pre></td>
       <td>${formatExploitResult(r.exploit_result)}</td>
-      <td>${escapeHtml(r.notes || '—')}</td>
     </tr>
   `).join('');
 }
@@ -192,7 +194,7 @@ function renderBang3(records) {
 function renderBang4(records) {
   const tbody = document.getElementById('bang4');
   if (!records || records.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty-row">Chưa có dữ liệu thiết bị ngoại vi.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-row">Chưa có dữ liệu thiết bị ngoại vi.</td></tr>';
     document.getElementById('count-bang4').textContent = '0 mục';
     return;
   }
@@ -209,6 +211,7 @@ function renderBang4(records) {
       <td class="cell-mono">${escapeHtml(r.last_plug || '—')}</td>
       <td>${r.plug_count}</td>
       <td>${formatBool(r.badusb_warning)}</td>
+      <td><pre class="cell-mono" style="white-space:pre-wrap;max-width:250px;font-size:10px;margin:0;font-family:Consolas,monospace;">${escapeHtml(r.recent_files_summary || '—')}</pre></td>
     </tr>
   `).join('');
 }
@@ -543,11 +546,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Render bảng dự báo mặc định (trước khi gọi backend)
   // để UI hiển thị ngay cả khi backend chưa sẵn sàng
   renderEstimateTable([
-    { id: 'bang1', group: 'Bản quyền & Crack Tools', min_sec: 2, max_sec: 8, status: 'pending' },
-    { id: 'bang2', group: 'Mạng & Pentest', min_sec: 5, max_sec: 20, status: 'pending' },
-    { id: 'bang3', group: 'Card mạng & Wi-Fi', min_sec: 1, max_sec: 4, status: 'pending' },
-    { id: 'bang4', group: 'USB & Ngoại vi', min_sec: 1, max_sec: 5, status: 'pending' },
-    { id: 'bang5', group: 'Mã độc & Memory', min_sec: 3, max_sec: 15, status: 'pending' },
+    { id: 'bang1', group: 'Bản quyền & Crack Tools', min_sec: 2, max_sec: 15, status: 'pending' },
+    { id: 'bang2', group: 'Mạng & Pentest', min_sec: 3, max_sec: 30, status: 'pending' },
+    { id: 'bang3', group: 'Card mạng & Wi-Fi', min_sec: 1, max_sec: 5, status: 'pending' },
+    { id: 'bang4', group: 'USB & Ngoại vi', min_sec: 1, max_sec: 8, status: 'pending' },
+    { id: 'bang5', group: 'Mã độc & Memory', min_sec: 3, max_sec: 20, status: 'pending' },
   ]);
 
   // Đợi 100ms rồi thử gọi backend (để Wails bindings kịp ready)
