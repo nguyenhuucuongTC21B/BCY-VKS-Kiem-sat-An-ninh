@@ -24,36 +24,32 @@
     ĐỘC LẬP – TỰ DO – HẠNH PHÚC
   </div>
 
-    <!-- HEADER 3 TẦNG -->
+  <!-- HEADER 3 TẦNG -->
   <header class="gov-header">
 
-    <!-- TẦNG 1: BANNER VÀNG FULL-WIDTH -->
-    <div class="gov-banner">
-      <div class="wrap gov-header-main">
+    <!-- TẦNG 1: Logo · Text · Logo -->
+    <div class="wrap gov-header-main">
+      <div class="brand-logo-left">
+        <img src="assets/logo-bcy.png" alt="Logo Ban Cơ yếu" />
+      </div>
 
-        <div class="brand-logo-left">
-          <img src="assets/logo-bcy.png" alt="Logo Ban Cơ yếu" />
-        </div>
+      <div class="brand-text">
+        <div class="agency-name">BAN CƠ YẾU</div>
+        <div class="app-title">BCY-VKS · KIỂM SÁT AN NINH</div>
+        <div class="app-subtitle">Hệ thống Rà quét &amp; Giám định Kỹ thuật số</div>
+      </div>
 
-        <div class="brand-text">
-          <div class="agency-name">BAN CƠ YẾU</div>
-          <div class="app-title">BCY-VKS · KIỂM SÁT AN NINH</div>
-          <div class="app-subtitle">Hệ thống Rà quét &amp; Giám định Kỹ thuật số</div>
-        </div>
-
-        <div class="brand-logo-right" id="brand-logo-right">
-          <img src="assets/logo-vks.png" alt="Logo Ngành Kiểm sát"
-               onerror="
-                 var p = this.parentElement;
-                 p.style.cssText += 'background:radial-gradient(circle at 50% 45%,#FFF8E2 0%,#E5D08A 100%);color:#7A1010;font-family:Cambria,serif;font-weight:700;font-size:10px;text-align:center;line-height:1.15;';
-                 p.innerHTML = 'VIỆN<br>KIỂM SÁT<br>NHÂN DÂN';
-               " />
-        </div>
-
+      <div class="brand-logo-right" id="brand-logo-right">
+        <img src="assets/logo-vks.png" alt="Logo Ngành Kiểm sát"
+             onerror="
+               var p = this.parentElement;
+               p.style.cssText += 'background:radial-gradient(circle at 50% 45%,#FFF8E2 0%,#E5D08A 100%);color:#631017;font-family:Cambria,serif;font-weight:700;font-size:10px;text-align:center;line-height:1.15;';
+               p.innerHTML = 'VIỆN<br>KIỂM SÁT<br>NHÂN DÂN';
+             " />
       </div>
     </div>
 
-    <!-- TẦNG 2: TOOLBAR -->
+    <!-- TẦNG 2: Toolbar canh giữa -->
     <div class="gov-header-toolbar">
       <div class="wrap">
         <div class="gov-header-toolbar-inner">
@@ -82,7 +78,7 @@
       </div>
     </div>
 
-    <!-- TẦNG 3: DẢI HOA VĂN -->
+    <!-- TẦNG 3: Dải hoa văn -->
     <div class="gov-header-rule"></div>
 
   </header>
@@ -98,41 +94,17 @@
     </div>
   </section>
 
-  <!-- STATS ROW - click vào ô để xem chi tiết -->
+  <!-- STATS ROW -->
   <section class="wrap stats-wrap">
     <div class="stats-row">
-      <div class="stat-tile" data-stat="crack" title="Click để xem danh sách chi tiết">
-        <div class="stat-value" id="stat-crack">0</div>
-        <div class="stat-label">Bản quyền lậu</div>
-      </div>
-      <div class="stat-tile" data-stat="ports" title="Click để xem danh sách chi tiết">
-        <div class="stat-value" id="stat-ports">0</div>
-        <div class="stat-label">Cổng nguy hiểm</div>
-      </div>
-      <div class="stat-tile" data-stat="cve" title="Click để xem danh sách chi tiết">
-        <div class="stat-value" id="stat-cve">0</div>
-        <div class="stat-label">CVE CVSS≥7</div>
-      </div>
-      <div class="stat-tile" data-stat="adapters" title="Click để xem danh sách chi tiết">
-        <div class="stat-value" id="stat-adapters">0</div>
-        <div class="stat-label">Card mạng</div>
-      </div>
-      <div class="stat-tile" data-stat="usb" title="Click để xem danh sách chi tiết">
-        <div class="stat-value" id="stat-usb">0</div>
-        <div class="stat-label">Thiết bị USB</div>
-      </div>
-      <div class="stat-tile" data-stat="badusb" title="Click để xem danh sách chi tiết">
-        <div class="stat-value" id="stat-badusb">0</div>
-        <div class="stat-label">BadUSB</div>
-      </div>
-      <div class="stat-tile" data-stat="keylogger" title="Click để xem danh sách chi tiết">
-        <div class="stat-value" id="stat-keylogger">0</div>
-        <div class="stat-label">Keylogger</div>
-      </div>
-      <div class="stat-tile" data-stat="duration">
-        <div class="stat-value" id="stat-duration">0.0s</div>
-        <div class="stat-label">Thời lượng</div>
-      </div>
+      <div class="stat-tile"><div class="stat-value" id="stat-crack">0</div><div class="stat-label">Bản quyền lậu</div></div>
+      <div class="stat-tile"><div class="stat-value" id="stat-ports">0</div><div class="stat-label">Cổng nguy hiểm</div></div>
+      <div class="stat-tile"><div class="stat-value" id="stat-cve">0</div><div class="stat-label">CVE CVSS≥7</div></div>
+      <div class="stat-tile"><div class="stat-value" id="stat-adapters">0</div><div class="stat-label">Card mạng</div></div>
+      <div class="stat-tile"><div class="stat-value" id="stat-usb">0</div><div class="stat-label">Thiết bị USB</div></div>
+      <div class="stat-tile"><div class="stat-value" id="stat-badusb">0</div><div class="stat-label">BadUSB</div></div>
+      <div class="stat-tile"><div class="stat-value" id="stat-keylogger">0</div><div class="stat-label">Keylogger</div></div>
+      <div class="stat-tile"><div class="stat-value" id="stat-duration">0.0s</div><div class="stat-label">Thời lượng</div></div>
     </div>
   </section>
 
@@ -231,7 +203,7 @@
               <th class="col-num">#</th>
               <th>Loại thiết bị</th><th>Hãng &amp; Model</th><th>Hardware ID</th>
               <th>VID/PID</th><th>Ổ đĩa</th><th>Cắm lần đầu</th>
-              <th>Cắm lần cuối</th><th>Số lần</th><th>BadUSB</th>
+              <th>Cắm lần cuối</th><th>Số lần</th><th>Lịch sử kết nối</th><th>BadUSB</th>
               <th>Recent Files &amp; Jump Lists</th>
             </tr></thead>
             <tbody id="bang4"></tbody>
@@ -315,20 +287,6 @@
       <div class="modal-body" id="progress-body"></div>
       <div class="modal-footer">
         <button id="progress-done" class="gov-btn gov-btn-secondary">Đóng</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL STAT DETAIL - hiển thị khi click vào ô thống kê -->
-  <div id="modal-stat-detail" class="modal hidden">
-    <div class="modal-content modal-stat-content">
-      <div class="modal-header">
-        <h2 id="stat-detail-title">Chi tiết</h2>
-        <button id="stat-detail-close" class="modal-close-btn" aria-label="Đóng">&times;</button>
-      </div>
-      <div class="modal-body" id="stat-detail-body"></div>
-      <div class="modal-footer">
-        <button id="stat-detail-done" class="gov-btn gov-btn-secondary">Đóng</button>
       </div>
     </div>
   </div>

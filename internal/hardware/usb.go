@@ -3,10 +3,27 @@
 package hardware
 
 import (
-        "golang.org/x/sys/windows/registry"
+        "encoding/binary"
         "strings"
         "time"
+
+        "golang.org/x/sys/windows/registry"
 )
+
+// DEVPKEY Properties: {83da6326-97a6-4088-9453-a1923f573b29}
+//   - 0064 = DEVPKEY_Device_LastArrival (thời điểm cắm gần nhất)
+//   - 0066 = DEVPKEY_Device_LastRemoval (thời điểm rút gần nhất)
+const (
+        propLastArrival = "0064"
+        propLastRemoval = "0066"
+        devPropsGUID    = "{83da6326-97a6-4088-9453-a1923f573b29}"
+)
+
+// MountedVolume là một entry trong SYSTEM\MountedDevices
+type MountedVolume struct {
+        Letter  string // "E:"
+        Decoded string // chuỗi UTF-16 đã decode, vd "USBSTOR\Disk&Ven_...\07815...&0#{...}"
+}
 
 // scanCurrentPeripherals liệt kê thiết bị ngoại vi đang cắm
 // Kết hợp 3 nhánh registry: USB, USBSTOR, MountedDevices
@@ -19,15 +36,37 @@ func scanCurrentPeripherals() []PeripheralRec {
         // 2. USB - các thiết bị USB khác (printer, keyboard, mouse)
         out = append(out, scanUSBDevices()...)
 
-        // 3. MountedDevices - lấy ký tự ổ đĩa
-        driveMap := scanMountedDevices()
+        // 3. MountedDevices - lấy ký tự ổ đĩa cho thiết bị lưu trữ
+        mounted := scanMountedDevices()
         for i := range out {
-                if letter, ok := driveMap[out[i].HardwareID]; ok {
+                if letter, ok := matchDriveLetter(mounted, out[i]); ok {
                         out[i].DriveLetter = letter
                 }
         }
 
         return out
+}
+
+// matchDriveLetter đối chiếu record với danh sách MountedDevices.
+// Giá trị MountedDevices chứa Device Instance ID dạng UTF-16 với "#" làm separator
+// (vd "_??_USBSTOR#Disk&Ven_SanDisk...#07815FB8&0#{53f56307-...}"),
+// nên ta match theo serial tail / HardwareID substring (case-insensitive).
+func matchDriveLetter(mounted []MountedVolume, rec PeripheralRec) (string, bool) {
+        recLower := strings.ToLower(rec.HardwareID)
+        serialTail := strings.ToLower(pnpSerialTail(rec.HardwareID))
+        for _, mv := range mounted {
+                d := strings.ToLower(mv.Decoded)
+                if recLower != "" && strings.Contains(d, recLower) {
+                        return mv.Letter, true
+                }
+                if len(serialTail) >= 6 && strings.Contains(d, serialTail) {
+                        return mv.Letter, true
+                }
+                if rec.VIDPID != "" && strings.Contains(d, strings.ToLower(rec.VIDPID)) {
+                        return mv.Letter, true
+                }
+        }
+        return "", false
 }
 
 // scanUSBSTOR đọc HKLM\SYSTEM\CurrentControlSet\Enum\USBSTOR
@@ -43,7 +82,7 @@ func scanUSBSTOR() []PeripheralRec {
 
         classes, _ := k.ReadSubKeyNames(-1)
         for _, class := range classes {
-                // class có dạng "Ven_SanDisk&Prod_Ultra_Flar"
+                // class có dạng "Disk&Ven_SanDisk&Prod_Ultra_Flair&Rev_1.00"
                 // Trích Vendor/Model từ class
                 vendor, model := parseUSBSTORClass(class)
 
@@ -65,7 +104,7 @@ func scanUSBSTOR() []PeripheralRec {
                         if v, _, err := dev.GetStringValue("FriendlyName"); err == nil {
                                 friendly = v
                         } else if v, _, err := dev.GetStringValue("DeviceDesc"); err == nil {
-                                friendly = v
+                                friendly = stripDevDescPrefix(v)
                         }
                         _ = dev.Close()
 
@@ -73,7 +112,6 @@ func scanUSBSTOR() []PeripheralRec {
                                 DeviceType:  "USB Storage",
                                 VendorModel: friendly,
                                 HardwareID:  class + "\\" + serial,
-                                VIDPID:      "", // USBSTOR không có VID/PID trực tiếp
                         }
                         if rec.VendorModel == "" {
                                 rec.VendorModel = vendor + " " + model
@@ -86,7 +124,7 @@ func scanUSBSTOR() []PeripheralRec {
 }
 
 // parseUSBSTORClass tách vendor + model từ class string
-// Format: "Ven_SanDisk&Prod_Ultra_Flar&Rev_1.00"
+// Format: "Disk&Ven_SanDisk&Prod_Ultra_Flair&Rev_1.00"
 func parseUSBSTORClass(s string) (vendor, model string) {
         parts := strings.Split(s, "&")
         for _, p := range parts {
@@ -172,22 +210,17 @@ func scanUSBDevices() []PeripheralRec {
         return out
 }
 
-// extractVIDPID tách VID_xxxx và PID_xxxx từ DeviceID string
-func extractVIDPID(s string) (vid, pid string) {
-        for _, p := range strings.Split(s, "&") {
-                if strings.HasPrefix(strings.ToUpper(p), "VID_") {
-                        vid = p[4:]
-                } else if strings.HasPrefix(strings.ToUpper(p), "PID_") {
-                        pid = p[4:]
-                }
-        }
-        return
-}
-
-// scanMountedDevices trả về map[hardwareID]driveLetter
-// HKLM\SYSTEM\MountedDevices chứa giá trị binary cho mỗi DOS Devices
-func scanMountedDevices() map[string]string {
-        out := map[string]string{}
+// scanMountedDevices trả về danh sách MountedDevices đã decode.
+// HKLM\SYSTEM\MountedDevices: mỗi giá trị "\DosDevices\E:" là REG_BINARY
+// chứa chuỗi UTF-16LE. Cấu trúc byte:
+//   - 8 byte header (signature + offset)
+//   - từ offset 8: chuỗi UTF-16LE ví dụ "_??_USBSTOR#Disk&Ven_...#serial#{guid}"
+//
+// Code cũ decode từ offset 4 -> ký tự rác đầu chuỗi và lệch alignment,
+// làm việc match HardwareID thất bại. Ở đây decode từ offset 8, và nếu
+// chuỗi không hợp lệ thì thử quét tìm cụm "USBSTOR"/"Volume" trong binary.
+func scanMountedDevices() []MountedVolume {
+        var out []MountedVolume
         k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\MountedDevices`,
                 registry.QUERY_VALUE|registry.WOW64_64KEY)
         if err != nil {
@@ -206,20 +239,90 @@ func scanMountedDevices() map[string]string {
                 }
                 letter := strings.TrimPrefix(name, `\DosDevices\`)
                 v, _, err := k.GetBinaryValue(name)
-                if err != nil || len(v) < 22 {
+                if err != nil || len(v) < 24 {
                         continue
                 }
-                // Vùng UTF-16 unique ID bắt đầu từ offset 4 (sau 2 DWORD header)
-                // Binary: offset 4 - là unique ID có chứa HardwareID trong Unicode
-                hwid := decodeUTF16FromBytes(v[4:])
-                if hwid != "" {
-                        out[hwid] = letter
+                decoded := bestDecodeMountedBinary(v)
+                if decoded != "" {
+                        out = append(out, MountedVolume{Letter: letter, Decoded: decoded})
                 }
         }
         return out
 }
 
-// decodeUTF16FromBytes giải mã chuỗi UTF-16LE từ byte slice
+// bestDecodeMountedBinary decode chuỗi UTF-16LE từ binary MountedDevices
+// một cách bền bỉ: thử offset chuẩn (8), rồi offset khác, rồi quét pattern.
+func bestDecodeMountedBinary(v []byte) string {
+        // 1. Offset chuẩn 8
+        if s := decodeUTF16FromBytes(v[8:]); strings.Contains(strings.ToLower(s), "\\") {
+                return s
+        }
+        // 2. Thử một số offset khác (một số build Windows dùng header 4/12 byte)
+        for _, off := range []int{4, 12, 0} {
+                if off >= len(v) {
+                        continue
+                }
+                if s := decodeUTF16FromBytes(v[off:]); s != "" && looksLikeMountPath(s) {
+                        return s
+                }
+        }
+        // 3. Quét tìm cụm "usbstor" hoặc "volume" dạng UTF-16LE trong binary
+        for _, pat := range []string{"usbstor", "volume"} {
+                if idx := indexUTF16LECaseInsensitive(v, pat); idx > 0 {
+                        // lùi lại để lấy cả prefix "\??\" nếu có
+                        start := idx - 8 // "\??\" = 4 ký tự UTF-16 = 8 byte
+                        if start < 0 {
+                                start = 0
+                        }
+                        if s := decodeUTF16FromBytes(v[start:]); s != "" {
+                                return s
+                        }
+                }
+        }
+        return ""
+}
+
+// looksLikeMountPath kiểm tra chuỗi decode có giống đường dẫn mount không
+func looksLikeMountPath(s string) bool {
+        l := strings.ToLower(s)
+        return strings.HasPrefix(l, "\\??\\") || strings.HasPrefix(l, "_??_") ||
+                strings.Contains(l, "usbstor") || strings.Contains(l, "volume{") ||
+                strings.Contains(l, "storage")
+}
+
+// indexUTF16LECaseInsensitive tìm vị trí byte của pattern ASCII trong chuỗi UTF-16LE
+func indexUTF16LECaseInsensitive(data []byte, pattern string) int {
+        // Chuẩn bị pattern dạng UTF-16LE thường + HOA
+        lower := []byte(pattern)
+        upper := []byte(strings.ToUpper(pattern))
+        var patL, patU []byte
+        for _, ch := range lower {
+                patL = append(patL, ch, 0)
+        }
+        for _, ch := range upper {
+                patU = append(patU, ch, 0)
+        }
+        for i := 0; i+1 < len(data); i += 2 {
+                if matchAt(data, i, patL) || matchAt(data, i, patU) {
+                        return i
+                }
+        }
+        return -1
+}
+
+func matchAt(data []byte, off int, pat []byte) bool {
+        if off+len(pat) > len(data) {
+                return false
+        }
+        for i := 0; i < len(pat); i++ {
+                if data[off+i] != pat[i] {
+                        return false
+                }
+        }
+        return true
+}
+
+// decodeUTF16FromBytes giải mã chuỗi UTF-16LE từ byte slice tới null terminator
 func decodeUTF16FromBytes(b []byte) string {
         if len(b) < 2 {
                 return ""
@@ -231,187 +334,157 @@ func decodeUTF16FromBytes(b []byte) string {
                 if c == 0 {
                         break
                 }
+                // Chuỗi mount path thường là ASCII; bỏ qua ký tự không in được
+                // (dấu hiệu decode sai offset)
+                if c < 0x20 || c > 0x7E {
+                        return ""
+                }
                 runes = append(runes, rune(c))
         }
         return string(runes)
 }
 
-// scanPeripheralHistory đọc lịch sử kết nối (FirstPlug, LastPlug, PlugCount)
-// từ SetupAPI logs: HKLM\SYSTEM\CurrentControlSet\Enum\USB\<VID>\<serial>\Properties
-// + Event Logs Microsoft-Windows-DriverFrameworks-UserMode
+// fileTimeToTime chuyển FILETIME 8-byte (100ns từ 1601-01-01) sang time.Time
+func fileTimeToTime(b []byte) time.Time {
+        if len(b) < 8 {
+                return time.Time{}
+        }
+        ft := binary.LittleEndian.Uint64(b)
+        if ft == 0 {
+                return time.Time{}
+        }
+        // Khoảng 1601 -> 1970 là 11644473600 giây
+        const epochDiff = uint64(116444736000000000)
+        if ft < epochDiff {
+                return time.Time{}
+        }
+        ns := int64(ft-epochDiff) * 100
+        return time.Unix(0, ns)
+}
+
+// readDevicePropertyFileTime đọc giá trị FILETIME từ
+// HKLM\SYSTEM\CurrentControlSet\Enum\<pnp>\Properties\{guid}\<prop>\00000000
+func readDevicePropertyFileTime(pnp, prop string) string {
+        if pnp == "" {
+                return ""
+        }
+        root := `SYSTEM\CurrentControlSet\Enum\` + pnp + `\Properties\` + devPropsGUID + `\` + prop
+        k, err := registry.OpenKey(registry.LOCAL_MACHINE, root,
+                registry.QUERY_VALUE|registry.WOW64_64KEY)
+        if err != nil {
+                return ""
+        }
+        defer k.Close()
+
+        // Value name chuẩn là "00000000", nhưng đọc value đầu tiên cho chắc
+        if v, _, err := k.GetBinaryValue("00000000"); err == nil {
+                if t := fileTimeToTime(v); !t.IsZero() {
+                        return t.Local().Format(timeLayout)
+                }
+        }
+        names, _ := k.ReadValueNames(-1)
+        for _, n := range names {
+                v, _, err := k.GetBinaryValue(n)
+                if err != nil {
+                        continue
+                }
+                if t := fileTimeToTime(v); !t.IsZero() {
+                        return t.Local().Format(timeLayout)
+                }
+        }
+        return ""
+}
+
+// readFirstArrival đọc thời điểm cắm gần nhất từ Properties\LastArrival (0064)
+func readFirstArrival(pnp string) string {
+        return readDevicePropertyFileTime(pnp, propLastArrival)
+}
+
+// readLastRemoval đọc thời điểm rút gần nhất từ Properties\LastRemoval (0066)
+func readLastRemoval(pnp string) string {
+        return readDevicePropertyFileTime(pnp, propLastRemoval)
+}
+
+// friendlyNameForPNP tra tên thân thiện của thiết bị trong
+// HKLM\SYSTEM\CurrentControlSet\Enum\<pnp> (pnp đã normalize cũng được vì
+// registry path là case-insensitive).
+func friendlyNameForPNP(devID string) string {
+        if devID == "" {
+                return ""
+        }
+        k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+                `SYSTEM\CurrentControlSet\Enum\`+devID,
+                registry.QUERY_VALUE|registry.WOW64_64KEY)
+        if err != nil {
+                return ""
+        }
+        defer k.Close()
+        if v, _, err := k.GetStringValue("FriendlyName"); err == nil && v != "" {
+                return v
+        }
+        if v, _, err := k.GetStringValue("DeviceDesc"); err == nil {
+                return stripDevDescPrefix(v)
+        }
+        return ""
+}
+
+// scanPeripheralHistory dựng lịch sử kết nối thiết bị ngoại vi:
+//
+//	Nguồn 1: Event Log Kernel-PnP / SetupAPI (scanDeviceSessions)
+//	         -> lịch sử TỪNG LẦN cắm/rút + PlugCount chính xác
+//	Nguồn 2: Ghosted devices + Properties LastArrival/LastRemoval
+//	         -> bổ sung cho thiết bị mà Event Log không còn giữ
 func scanPeripheralHistory() []PeripheralRec {
-        // Trích xuất FirstPlug/LastPlug từ giá trị Properties\83da6326-... (Container ID)
-        // trong nhánh Enum\USBSTOR\<...>\<serial>
         var out []PeripheralRec
-        g := scanGhostedDevices()
-        for _, dev := range g {
+        seen := map[string]bool{}
+
+        // Nguồn 1: sessions từ Event Log / SetupAPI
+        devSessions := scanDeviceSessions()
+        for devID, ds := range devSessions {
+                if ds == nil || len(ds.Sessions) == 0 {
+                        continue
+                }
+                rec := sessionsToHistRec(devID, ds)
+                out = append(out, rec)
+                seen[devID] = true
+        }
+
+        // Nguồn 2: ghosted devices + Properties LastArrival/LastRemoval
+        for _, dev := range scanGhostedDevices() {
+                key := normalizePnpID(dev.PNPDeviceID)
+                if key == "" || seen[key] {
+                        continue
+                }
+                first := readFirstArrival(dev.PNPDeviceID)
+                last := readLastRemoval(dev.PNPDeviceID)
+                if first == "" && last == "" {
+                        // Không có dấu vết thời gian nào -> bỏ qua để tránh nhiễu
+                        continue
+                }
                 rec := PeripheralRec{
-                        HardwareID: extractSerialFromPNP(dev.PNPDeviceID),
-                        VIDPID:     extractVIDPIDStr(dev.PNPDeviceID),
+                        HardwareID:  key,
+                        VIDPID:      extractVIDPIDStr(dev.PNPDeviceID),
                         VendorModel: dev.FriendlyName,
-                        FirstPlug:   readFirstArrival(dev.PNPDeviceID),
-                        LastPlug:    readLastRemoval(dev.PNPDeviceID),
+                        FirstPlug:   first,
+                        LastPlug:    last,
+                        PlugCount:   1,
+                }
+                // Ghosted (đã rút) -> session cuối cùng đã đóng
+                if first != "" {
+                        rec.Sessions = []ConnectSession{{
+                                Arrival: first,
+                                Removal: last,
+                                Duration: func() string {
+                                        fa, la := mustParseLayout(first), mustParseLayout(last)
+                                        if fa.IsZero() || la.IsZero() {
+                                                return ""
+                                        }
+                                        return vnDuration(la.Sub(fa))
+                                    }(),
+                        }}
                 }
                 out = append(out, rec)
+                seen[key] = true
         }
         return out
-}
-
-// extractSerialFromPNP tách serial từ PNPDeviceID có dạng VID_...&PID_...\<serial>
-func extractSerialFromPNP(pnp string) string {
-        idx := strings.LastIndex(pnp, `\`)
-        if idx < 0 {
-                return pnp
-        }
-        return pnp[idx+1:]
-}
-
-func extractVIDPIDStr(pnp string) string {
-        vid, pid := extractVIDPID(pnp)
-        if vid == "" {
-                return ""
-        }
-        return "VID_" + vid + "&PID_" + pid
-}
-
-// readFirstArrival đọc thời điểm cắm lần đầu từ Properties\ContainerId\LastArrival
-// readFirstArrival đọc thời điểm cắm lần đầu từ registry
-// Path: HKLM\SYSTEM\CurrentControlSet\Enum\<pnp>\Properties\{83da6326-...}\0083 (LastArrival)
-// hoặc lấy từ giá trị FirstArrivalDate trong nhánh Properties
-func readFirstArrival(pnp string) string {
-        if pnp == "" {
-                return ""
-        }
-        // Thử đọc từ Properties\{83da6326-9a14-4a7e-9b9c-1d1c3e7e5c3a}\0083
-        // Đây là DeviceArrival timestamp (FILETIME 8 bytes)
-        propPath := `SYSTEM\CurrentControlSet\Enum\` + pnp + `\Properties`
-        k, err := registry.OpenKey(registry.LOCAL_MACHINE, propPath,
-                registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-        if err != nil {
-                return ""
-        }
-        defer k.Close()
-        
-        // Đọc các subkey có tên dạng GUID
-        subKeys, _ := k.ReadSubKeyNames(-1)
-        for _, sk := range subKeys {
-                // Tìm subkey có chứa "83da6326" (Device Properties GUID)
-                if !contains(strings.ToLower(sk), "83da6326") {
-                        continue
-                }
-                // Mở subkey này và tìm 0083 (LastArrival) hoặc 0084 (LastRemoval)
-                guidPath := propPath + `\` + sk
-                gk, err := registry.OpenKey(registry.LOCAL_MACHINE, guidPath,
-                        registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-                if err != nil {
-                        continue
-                }
-                entries, _ := gk.ReadSubKeyNames(-1)
-                gk.Close()
-                for _, entry := range entries {
-                        if entry == "0083" || entry == "LastArrival" || entry == "FirstArrival" {
-                                // Mở entry và đọc giá trị binary
-                                entryPath := guidPath + `\` + entry
-                                ek, err := registry.OpenKey(registry.LOCAL_MACHINE, entryPath,
-                                        registry.QUERY_VALUE|registry.WOW64_64KEY)
-                                if err != nil {
-                                        continue
-                                }
-                                // Đọc giá trị "00000000" hoặc default
-                                v, _, err := ek.GetBinaryValue("")
-                                ek.Close()
-                                if err != nil || len(v) < 8 {
-                                        // Thử GetBinaryValue("00000000")
-                                        ek2, err2 := registry.OpenKey(registry.LOCAL_MACHINE, entryPath,
-                                                registry.QUERY_VALUE|registry.WOW64_64KEY)
-                                        if err2 == nil {
-                                                v2, _, _ := ek2.GetBinaryValue("00000000")
-                                                _ = ek2.Close()
-                                                if len(v2) >= 8 {
-                                                        return filetimeToTime(v2[:8])
-                                                }
-                                        }
-                                        continue
-                                }
-                                return filetimeToTime(v[:8])
-                        }
-                }
-        }
-        return ""
-}
-
-// readLastRemoval đọc thời điểm rút thiết bị lần cuối
-func readLastRemoval(pnp string) string {
-        if pnp == "" {
-                return ""
-        }
-        propPath := `SYSTEM\CurrentControlSet\Enum\` + pnp + `\Properties`
-        k, err := registry.OpenKey(registry.LOCAL_MACHINE, propPath,
-                registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-        if err != nil {
-                return ""
-        }
-        defer k.Close()
-        
-        subKeys, _ := k.ReadSubKeyNames(-1)
-        for _, sk := range subKeys {
-                if !contains(strings.ToLower(sk), "83da6326") {
-                        continue
-                }
-                guidPath := propPath + `\` + sk
-                gk, err := registry.OpenKey(registry.LOCAL_MACHINE, guidPath,
-                        registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-                if err != nil {
-                        continue
-                }
-                entries, _ := gk.ReadSubKeyNames(-1)
-                gk.Close()
-                for _, entry := range entries {
-                        if entry == "0084" || entry == "LastRemoval" {
-                                entryPath := guidPath + `\` + entry
-                                ek, err := registry.OpenKey(registry.LOCAL_MACHINE, entryPath,
-                                        registry.QUERY_VALUE|registry.WOW64_64KEY)
-                                if err != nil {
-                                        continue
-                                }
-                                v, _, err := ek.GetBinaryValue("")
-                                ek.Close()
-                                if err == nil && len(v) >= 8 {
-                                        return filetimeToTime(v[:8])
-                                }
-                                // Thử key "00000000"
-                                ek2, err2 := registry.OpenKey(registry.LOCAL_MACHINE, entryPath,
-                                        registry.QUERY_VALUE|registry.WOW64_64KEY)
-                                if err2 == nil {
-                                        v2, _, _ := ek2.GetBinaryValue("00000000")
-                                        _ = ek2.Close()
-                                        if len(v2) >= 8 {
-                                                return filetimeToTime(v2[:8])
-                                        }
-                                }
-                        }
-                }
-        }
-        return ""
-}
-
-// filetimeToTime chuyển FILETIME 8 byte thành chuỗi thời gian RFC3339
-// FILETIME = số 100-nanosecond intervals từ 1601-01-01 UTC
-func filetimeToTime(b []byte) string {
-        if len(b) < 8 {
-                return ""
-        }
-        ft := uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
-                uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
-        if ft == 0 {
-                return ""
-        }
-        // Chuyển FILETIME (100ns từ 1601) sang Unix epoch (ns từ 1970)
-        // 116444736000000000 = số 100ns từ 1601 đến 1970
-        unixNanos := int64(ft-116444736000000000) * 100
-        if unixNanos < 0 {
-                return ""
-        }
-        t := time.Unix(0, unixNanos)
-        return t.UTC().Format(time.RFC3339)
 }
