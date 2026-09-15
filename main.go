@@ -53,11 +53,11 @@ type ScanEstimate struct {
 // (gọi ngay khi mở app để UI hiển thị bảng dự báo)
 func (a *App) GetScanEstimates() []ScanEstimate {
         return []ScanEstimate{
-                {"bang1", "Bản quyền & Crack Tools", 2, 8, "pending"},
-                {"bang2", "Mạng & Pentest", 5, 20, "pending"},
-                {"bang3", "Card mạng & Wi-Fi", 1, 4, "pending"},
-                {"bang4", "USB & Ngoại vi", 1, 5, "pending"},
-                {"bang5", "Mã độc & Memory", 3, 15, "pending"},
+                {"bang1", "Bản quyền & Crack Tools", 2, 15, "pending"},
+                {"bang2", "Mạng & Pentest", 3, 30, "pending"},
+                {"bang3", "Card mạng & Wi-Fi", 1, 5, "pending"},
+                {"bang4", "USB & Ngoại vi", 1, 8, "pending"},
+                {"bang5", "Mã độc & Memory", 3, 20, "pending"},
         }
 }
 
@@ -132,17 +132,19 @@ func (a *App) ScanAll() (*ScanResult, error) {
                 return res, nil
         }
 
-        a.emitProgress("license", "Đang quét bản quyền & công cụ crack (dự kiến 2-8s)...", 15)
-        a.emitProgress("network", "Đang quét cổng mạng & đối chiếu CVE (dự kiến 5-20s)...", 25)
-        a.emitProgress("hardware", "Đang kiểm kê card mạng & Wi-Fi (dự kiến 1-4s)...", 40)
-        a.emitProgress("peripheral", "Đang trích xuất lịch sử USB (dự kiến 1-5s)...", 55)
-        a.emitProgress("malware", "Đang giám định mã độc & keylogger (dự kiến 3-15s)...", 75)
+        a.emitProgress("license", "Đang quét bản quyền & công cụ crack (dự kiến 2-15s)...", 15)
+        a.emitProgress("network", "Đang quét cổng mạng & đối chiếu CVE (dự kiến 3-30s)...", 25)
+        a.emitProgress("hardware", "Đang kiểm kê card mạng & Wi-Fi (dự kiến 1-5s)...", 40)
+        a.emitProgress("peripheral", "Đang trích xuất lịch sử USB (dự kiến 1-8s)...", 55)
+        a.emitProgress("malware", "Đang giám định mã độc & keylogger (dự kiến 3-20s)...", 75)
 
         out := &ScanResult{}
         var wg sync.WaitGroup
 
-        // scanGroup chạy một nhóm quét với timeout 60 giây
-        // Nếu quá 60s, sẽ emit progress "timeout" và trả kết quả rỗng cho nhóm đó
+        // scanGroup chạy một nhóm quét với timeout "mềm" 180 giây
+        // Nếu quá 180s, emit progress "slow" để UI thông báo cho user,
+        // NHƯNG VẪN CHỜ goroutine hoàn tất để đảm bảo kết quả đầy đủ
+        // (tránh race condition: kết quả rỗng ở lần quét đầu)
         scanGroup := func(wg *sync.WaitGroup, groupID, doneMsg string, percent int, fn func() error) {
                 defer wg.Done()
                 done := make(chan struct{})
@@ -153,9 +155,13 @@ func (a *App) ScanAll() (*ScanResult, error) {
                 select {
                 case <-done:
                         a.emitProgress(groupID+"_done", doneMsg, percent)
-                case <-time.After(60 * time.Second):
-                        a.emitProgress(groupID+"_timeout", "⚠ Timeout nhóm "+groupID+" sau 60s", percent)
-                        a.writeAuditLog("SCAN_TIMEOUT", "Nhóm "+groupID+" timeout sau 60s")
+                case <-time.After(180 * time.Second):
+                        // Phát cảnh báo "đang chạy lâu" - KHÔNG return
+                        a.emitProgress(groupID+"_slow", "⚠ Nhóm "+groupID+" đang chạy lâu (>180s), vui lòng chờ...", percent)
+                        a.writeAuditLog("SCAN_SLOW", "Nhóm "+groupID+" chạy lâu hơn 180s, vẫn đang chờ")
+                        // CHỜ goroutine hoàn tất để có kết quả đầy đủ
+                        <-done
+                        a.emitProgress(groupID+"_done", "✓ "+groupID+" hoàn tất (chậm)", percent)
                 }
         }
 
@@ -362,6 +368,10 @@ func (a *App) demoResult() *ScanResult {
                                 CVSSScore:         8.1,
                                 ExploitResult:     "SUCCESS",
                                 Notes:             "SMBv1 đang bật - EternalBlue rủi ro cao",
+                                DNSCache:          "Tổng 247 domain đã cache | ⚠ 3 domain NGHI VẤN: pastebin.com, bit.ly/abc, .onion | 89 domain quốc tế",
+                                BrowserHistory:    "Chrome, Edge, Firefox | 1,847 URL | ⚠ 12 URL NGHI VẤN",
+                                LANConfig:         "SMBv1: BẬT - RỦI RO EternalBlue!\nLLMNR: CHƯA tắt - dễ bị tấn công Responder\nNetBIOS: Bật trên ít nhất 1 interface",
+                                DocumentLinks:     "Quét 47 tài liệu, tìm 156 link, 8 nghi vấn",
                         },
                 },
                 Bang3: []hardware.HardwareRecord{
@@ -382,45 +392,27 @@ func (a *App) demoResult() *ScanResult {
                                 Serial:        "PCI\\VEN_8086&DEV_51F0",
                                 MAC:           "BB:CC:DD:22:33:44",
                                 DriverStatus:  "OK",
-                                SSIDList:      "BCY-Office,Wifi-Cafe",
+                                SSIDList:      "BCY-Office,Wifi-Cafe,Guest-NET",
                                 LastConnect:   "2026-09-11T19:42:00Z",
                         },
                 },
                 Bang4: []hardware.PeripheralRec{
                         {
-                                DeviceType:  "USB Flash Drive",
-                                VendorModel: "SanDisk Ultra Flair 64GB",
-                                HardwareID:  "disk&ven_sandisk&prod_ultra_flair&rev_1.00\\4c530001234567890123&0",
-                                VIDPID:      "VID_0781&PID_5590",
-                                DriveLetter: "E:",
-                                FirstPlug:   "2026-08-12 10:15:22",
-                                LastPlug:    "2026-09-11 15:08:01",
-                                PlugCount:   6,
-                                BadUSBWarning: false,
-                                RecentFilesSummary: "8 shortcut Recent: bao-cao-q3.docx, danh-sach-can-bo.xlsx, anh-hoi-nghi.zip | " +
-                                        "Gốc ổ E:: 18 mục, mới nhất: BAO-CAO-Q3.docx (11/09/2026 14:55)",
+                                DeviceType:     "USB Flash Drive",
+                                VendorModel:    "SanDisk Ultra Flair 64GB",
+                                HardwareID:     "045E07C0123456789ABCDEF",
+                                VIDPID:         "VID_0781&PID_5590",
+                                DriveLetter:    "E:",
+                                FirstPlug:      "2026-08-12T10:15:22Z",
+                                LastPlug:       "2026-09-11T15:08:01Z",
+                                PlugCount:      14,
+                                BadUSBWarning:  false,
+                                RecentFilesSummary: "Recent: 523 mục | ⚠ 7 tài liệu BÍ MẬT | 23 ref ổ ngoài | 5 ref UNC mạng",
                                 Sessions: []hardware.ConnectSession{
-                                        {Arrival: "2026-09-11 15:08:01", Removal: "", Duration: "—"},
-                                        {Arrival: "2026-09-10 08:23:44", Removal: "2026-09-10 09:05:12", Duration: "41 phút"},
-                                        {Arrival: "2026-09-05 14:02:10", Removal: "2026-09-05 14:47:39", Duration: "45 phút"},
-                                        {Arrival: "2026-08-29 09:11:00", Removal: "2026-08-29 11:32:15", Duration: "2 giờ 21 phút"},
-                                        {Arrival: "2026-08-20 16:40:33", Removal: "2026-08-20 16:44:58", Duration: "4 phút"},
-                                        {Arrival: "2026-08-12 10:15:22", Removal: "2026-08-12 12:02:41", Duration: "1 giờ 47 phút"},
-                                },
-                        },
-                        {
-                                DeviceType:  "USB Mouse",
-                                VendorModel: "Logitech USB Optical Mouse",
-                                HardwareID:  "5&1f2e3d4c&0&3",
-                                VIDPID:      "VID_046D&PID_C077",
-                                FirstPlug:   "2026-08-12 09:50:01",
-                                LastPlug:    "2026-09-11 15:08:00",
-                                PlugCount:   3,
-                                BadUSBWarning: false,
-                                Sessions: []hardware.ConnectSession{
-                                        {Arrival: "2026-09-11 15:08:00", Removal: "", Duration: "—"},
-                                        {Arrival: "2026-08-12 10:14:55", Removal: "2026-08-12 18:22:10", Duration: "8 giờ 7 phút"},
-                                        {Arrival: "2026-08-12 09:50:01", Removal: "2026-08-12 10:01:23", Duration: "11 phút"},
+                                        {StartTime: "2026-08-12T10:15:22Z", EndTime: "2026-08-12T11:30:00Z", DriveLetter: "E:", Source: "Event Log Kernel-PnP"},
+                                        {StartTime: "2026-08-25T09:00:00Z", EndTime: "2026-08-25T09:45:00Z", DriveLetter: "F:", Source: "Event Log Kernel-PnP"},
+                                        {StartTime: "2026-09-01T14:00:00Z", EndTime: "2026-09-01T16:30:00Z", DriveLetter: "E:", Source: "Event Log Kernel-PnP"},
+                                        {StartTime: "2026-09-11T15:08:01Z", EndTime: "", DriveLetter: "E:", Source: "Event Log Kernel-PnP"},
                                 },
                         },
                 },
@@ -429,12 +421,11 @@ func (a *App) demoResult() *ScanResult {
                                 ProcessName:      "svch0st.exe",
                                 PID:              4812,
                                 Type:             "Keylogger",
-                                DangerLevel:      "CRITICAL",
                                 RunningInRAM:     true,
                                 FilePath:         "C:\\Users\\Public\\svch0st.exe",
                                 C2Server:         "45.137.21.88:8443",
                                 LogWipeEvidence:  "Đã phát hiện Event ID 1102 lúc 03:14",
-                                Reason:           "Trojan (mạo danh svchost)",
+                                Reason:           "Tiến trình mạo danh svchost.exe (chữ 'o' thay bằng '0') + có kết nối tới C2 server",
                         },
                 },
                 Stats: ScanStats{
@@ -442,7 +433,7 @@ func (a *App) demoResult() *ScanResult {
                         OpenPorts:      4,
                         CriticalCVE:    1,
                         Adapters:       2,
-                        Peripherals:    2,
+                        Peripherals:    1,
                         BadUSB:         0,
                         Keyloggers:     1,
                         SuspiciousProc: 1,

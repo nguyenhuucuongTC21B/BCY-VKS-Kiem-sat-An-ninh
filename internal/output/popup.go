@@ -79,41 +79,6 @@ func generatePopupHTML(ctx *remediationContext) string {
                         badUSBCount++
                 }
         }
-        if len(ctx.Result.Bang4) == 0 {
-                sb.WriteString(`<p>Không phát hiện thiết bị ngoại vi nào.</p>`)
-        }
-        for i, r := range ctx.Result.Bang4 {
-                fmt.Fprintf(&sb, `<p><strong>%d. %s</strong> (%s) · VID/PID: %s · Ổ đĩa: %s%s</p>`,
-                        i+1, r.VendorModel, r.DeviceType, r.VIDPID,
-                        r.DriveLetter, badusbTag(r.BadUSBWarning))
-                fmt.Fprintf(&sb, `<p style="margin-left:14px;">Số lần cắm: <strong>%d</strong>`, r.PlugCount)
-                if r.FirstPlug != "" {
-                        fmt.Fprintf(&sb, ` · Lần đầu: %s`, r.FirstPlug)
-                }
-                if r.LastPlug != "" {
-                        fmt.Fprintf(&sb, ` · Lần cuối: %s`, r.LastPlug)
-                }
-                sb.WriteString(`</p>`)
-                if n := len(r.Sessions); n > 0 {
-                        sb.WriteString(`<p style="margin-left:14px;font-size:12px;color:#9AA5B5;">Lịch sử từng lần (5 lần gần nhất): `)
-                        start := 0
-                        if n > 5 {
-                                start = n - 5
-                        }
-                        for k := start; k < n; k++ {
-                                s := r.Sessions[k]
-                                rem := s.Removal
-                                if rem == "" {
-                                        rem = "đang cắm"
-                                }
-                                if k > start {
-                                        sb.WriteString(" · ")
-                                }
-                                fmt.Fprintf(&sb, `Lần %d: %s → %s (%s)`, k+1, s.Arrival, rem, s.Duration)
-                        }
-                        sb.WriteString(`</p>`)
-                }
-        }
         if badUSBCount > 0 {
                 fmt.Fprintf(&sb, `<p style="color:#FF4444">Phát hiện %d thiết bị BadUSB!</p>`, badUSBCount)
                 sb.WriteString(`<p>Khóa toàn bộ USB storage qua GPO:</p>`)
@@ -158,10 +123,15 @@ func extractIP(addr string) string {
         return addr
 }
 
-// badusbTag trả về chuỗi HTML cảnh báo nếu thiết bị là BadUSB
-func badusbTag(bad bool) string {
-        if bad {
-                return ` <span style="color:#FF4444;font-weight:700;">[BadUSB!]</span>`
+// parseIntSafe parse int an toàn (không dùng strconv)
+func parseIntSafe(s string) int {
+        n := 0
+        for i := 0; i < len(s); i++ {
+                c := s[i]
+                if c < '0' || c > '9' {
+                        break
+                }
+                n = n*10 + int(c-'0')
         }
-        return ""
+        return n
 }

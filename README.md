@@ -9,7 +9,7 @@
 ---
 
 ![Status](https://img.shields.io/badge/Status-Stable-success?style=for-the-badge)
-![Version](https://img.shields.io/badge/Version-1.1.0-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=for-the-badge)
 ![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)
 ![Wails](https://img.shields.io/badge/Wails-v2.9.1-E24329?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=for-the-badge&logo=windows&logoColor=white)
@@ -56,7 +56,7 @@ Phần mềm thực hiện **5 nhóm rà quét** song song, trả về **5 bản
 | 1 | 🛡️ **Kiểm tra Bản quyền & Tính hợp pháp** | Quét công cụ crack (KMSpico, KMSAuto, MAS, HWIDGen, Adobe Zii...), đọc Registry KMS, dò Task Scheduler ngầm, trích Product ID/OEM Key/Licensing Channel | **Bảng 1** |
 | 2 | 🌐 **Dò quét Lỗ hổng, Mạng & Pentest** | Trạng thái Internet + IP/MAC/ISP hiện tại, lịch sử NetworkList, quét cổng TCP 1-65535, đối chiếu CVE offline, giả lập pentest | **Bảng 2** |
 | 3 | 🖥️ **Kiểm kê Phần cứng Card mạng & Wifi** | Win32_NetworkAdapter cho NIC onboard, USB PnP entity cho card gắn ngoài, ghosted devices, wireless profiles (SSID) | **Bảng 3** |
-| 4 | 🔌 **Trích xuất & Dựng lịch sử Thiết bị Ngoại vi** | Đọc USBSTOR + USB registry, trích VID/PID + serial, MountedDevices lấy ổ đĩa, đối chiếu BadUSB VID/PID, **truy vết lịch sử TỪNG lần cắm/rút + thời lượng** từ Event Log Kernel-PnP / SetupAPI, dấu vết Recent Files & Jump Lists | **Bảng 4** |
+| 4 | 🔌 **Trích xuất & Dựng lịch sử Thiết bị Ngoại vi** | Đọc USBSTOR + USB registry, trích VID/PID + serial, MountedDevices lấy ổ đĩa, đối chiếu BadUSB VID/PID | **Bảng 4** |
 | 5 | 🦠 **Giám định Mã độc, Keylogger & Memory Forensics** | Quét tiến trình keylogger (SetWindowsHookEx), phát hiện RAT/Trojan/APT, ReadProcessMemory cho fileless, Event ID 1102 (log wipe) | **Bảng 5** |
 
 ### 🔴 Phần II — 5 Bảng Đầu Ra + 2 Nút Lệnh
@@ -601,6 +601,6 @@ Dự án này sử dụng các thư viện mã nguồn mở sau:
 
 Made with ❤️ by BCY-VKS Team · Vietnam 🇻🇳
 
-Version 1.1.0 · September 2026
+Version 1.0.0 · September 2026
 
 </div>

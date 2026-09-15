@@ -60,6 +60,10 @@ func writeHTMLReport(ctx *remediationContext) (string, error) {
                 fmt.Fprintf(&sb, `<tr><td>Trạng thái hợp pháp</td><td>%s</td></tr>`, legalStatus(r.Legal))
                 sb.WriteString(`</table>`)
 
+                // === CĂN CỨ PHÁP LÝ (BỔ SUNG) ===
+                assessment := AssessLicenseLegal(r.SoftwareName, r.CrackTool, r.Legal)
+                sb.WriteString(LegalSectionHTML(assessment))
+
                 if !r.Legal {
                         sb.WriteString(`<h3>Lệnh xử lý</h3>`)
                         sb.WriteString(`<code>REM 1. Gỡ product key hiện tại
@@ -94,6 +98,18 @@ schtasks /delete /tn "WindowsActivation" /f</code>`)
                         r.InternetStatus, r.CurrentIP, r.CurrentMAC, r.ISP)
                 if r.OpenPorts != "" {
                         fmt.Fprintf(&sb, `<h3>Cổng mở</h3><p>%s</p>`, r.OpenPorts)
+                        // Đánh giá pháp lý cho từng cổng
+                        ports := strings.Split(r.OpenPorts, ",")
+                        for _, p := range ports {
+                                p = strings.TrimSpace(p)
+                                if p == "" {
+                                        continue
+                                }
+                                portNum := parseIntSafe(p)
+                                portAssessment := AssessPortLegal(portNum, p)
+                                sb.WriteString(fmt.Sprintf(`<h4>Cổng %s</h4>`, p))
+                                sb.WriteString(LegalSectionHTML(portAssessment))
+                        }
                 }
                 if r.CVEID != "" {
                         fmt.Fprintf(&sb, `<h3>Lỗ hổng CVE</h3><p>%s - CVSS: %.1f</p><p>%s</p>`,
@@ -135,47 +151,48 @@ REM Tuỳ chọn: tắt Wi-Fi qua netsh
 netsh interface set interface "Wi-Fi" disable</code>`)
 
         // Phần 4: USB
-        sb.WriteString(`<h2>4. Thiết bị ngoại vi</h2>`)
-        fmt.Fprintf(&sb, `<p>Phát hiện %d thiết bị (BadUSB: %d):</p>`,
-                len(ctx.Result.Bang4), countBadUSBInResult(ctx))
-        sb.WriteString(`<table><tr><th>Loại</th><th>Model</th><th>VID/PID</th><th>Ổ đĩa</th><th>Số lần cắm</th><th>Lần đầu</th><th>Lần cuối</th><th>BadUSB</th></tr>`)
+        sb.WriteString(`<h2>4. Thiết bị ngoại vi &amp; Lịch sử kết nối</h2>`)
+        fmt.Fprintf(&sb, `<p>Phát hiện %d thiết bị:</p>`, len(ctx.Result.Bang4))
+        sb.WriteString(`<table><tr><th>Loại</th><th>Model</th><th>VID/PID</th><th>Ổ đĩa</th><th>Số lần cắm</th><th>BadUSB</th></tr>`)
         for _, r := range ctx.Result.Bang4 {
                 badStr := "Không"
                 if r.BadUSBWarning {
                         badStr = "CÓ!"
                 }
-                fmt.Fprintf(&sb, `<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td style="color:#b10000">%s</td></tr>`,
-                        r.DeviceType, r.VendorModel, r.VIDPID, r.DriveLetter,
-                        r.PlugCount, orDash(r.FirstPlug), orDash(r.LastPlug), badStr)
+                fmt.Fprintf(&sb, `<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><strong>%d</strong></td><td style="color:#b10000">%s</td></tr>`,
+                        r.DeviceType, r.VendorModel, r.VIDPID, r.DriveLetter, r.PlugCount, badStr)
         }
         sb.WriteString(`</table>`)
-
-        // Chi tiết lịch sử TỪNG LẦN kết nối mỗi thiết bị
+        
+        // Chi tiết lịch sử kết nối từng thiết bị
         for _, r := range ctx.Result.Bang4 {
                 if len(r.Sessions) == 0 {
                         continue
                 }
-                fmt.Fprintf(&sb, `<h3>Lịch sử kết nối từng lần — %s (tổng %d lần cắm)</h3>`,
-                        htmlEscape(r.VendorModel), r.PlugCount)
-                sb.WriteString(`<table><tr><th>#</th><th>Thời điểm cắm</th><th>Thời điểm rút</th><th>Thời lượng</th></tr>`)
-                max := len(r.Sessions)
-                if max > 30 {
-                        max = 30
-                }
-                for k := 0; k < max; k++ {
-                        s := r.Sessions[k]
-                        rem := s.Removal
-                        if rem == "" {
-                                rem = `<strong style="color:#1F6B36">ĐANG CẮM</strong>`
+                fmt.Fprintf(&sb, `<h3>Lịch sử kết nối: %s (%d lần)</h3>`, r.VendorModel, len(r.Sessions))
+                sb.WriteString(`<table style="font-size:11px;"><tr><th>#</th><th>Cắm lúc</th><th>Rút lúc</th><th>Thời lượng</th><th>Ổ đĩa</th><th>Nguồn</th></tr>`)
+                for i, s := range r.Sessions {
+                        endTime := s.EndTime
+                        if endTime == "" {
+                                endTime = "<span style='color:#2d7a3e;'>Đang cắm</span>"
                         }
-                        fmt.Fprintf(&sb, `<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>`,
-                                k+1, htmlEscape(s.Arrival), rem, htmlEscape(s.Duration))
+                        fmt.Fprintf(&sb, `<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>`,
+                                i+1, s.StartTime, endTime, "—", s.DriveLetter, s.Source)
                 }
                 sb.WriteString(`</table>`)
-                if len(r.Sessions) > 30 {
-                        fmt.Fprintf(&sb, `<p style="font-size:11px;color:#888;">... và %d lần nữa (hiển thị 30 lần gần nhất).</p>`, len(r.Sessions)-30)
+                
+                // === CĂN CỨ PHÁP LÝ CHO BADUSB ===
+                if r.BadUSBWarning {
+                        badUSBAssessment := AssessBadUSBLegal(r.VendorModel, r.VIDPID)
+                        sb.WriteString(LegalSectionHTML(badUSBAssessment))
+                }
+                
+                // Recent Files summary nếu có
+                if r.RecentFilesSummary != "" {
+                        fmt.Fprintf(&sb, `<p style="font-size:11px;background:#FAF5E6;padding:6px;border-left:3px solid #8B0000;"><strong>Recent Files &amp; Jump Lists:</strong> %s</p>`, r.RecentFilesSummary)
                 }
         }
+        
         sb.WriteString(`<h3>Lệnh xử lý</h3>`)
         sb.WriteString(`<code>REM Khoá toàn bộ USB storage (GPO)
 reg add "HKLM\SYSTEM\CurrentControlSet\Services\USBSTOR" /v Start /t REG_DWORD /d 4 /f
@@ -198,7 +215,14 @@ reg delete "HKLM\SYSTEM\MountedDevices" /f</code>`)
                 fmt.Fprintf(&sb, `<tr><td>Đường dẫn file</td><td>%s</td></tr>`, r.FilePath)
                 fmt.Fprintf(&sb, `<tr><td>C2 Server</td><td>%s</td></tr>`, r.C2Server)
                 fmt.Fprintf(&sb, `<tr><td>Dấu hiệu xoá log</td><td>%s</td></tr>`, r.LogWipeEvidence)
+                if r.DangerLevel != "" {
+                        fmt.Fprintf(&sb, `<tr><td>Mức độ nguy hiểm</td><td>%s</td></tr>`, r.DangerLevel)
+                }
                 sb.WriteString(`</table>`)
+
+                // === CĂN CỨ PHÁP LÝ CHO MÃ ĐỘC ===
+                malwareAssessment := AssessMalwareLegal(r.ProcessName, r.C2Server != "", r.RunningInRAM, r.DangerLevel)
+                sb.WriteString(LegalSectionHTML(malwareAssessment))
 
                 sb.WriteString(`<h3>Lệnh xử lý</h3>`)
                 fmt.Fprintf(&sb, `<code>REM 1. Kill tiến trình
@@ -221,14 +245,45 @@ REM Dùng WinDbg hoặc process memory dump tool để kiểm tra dump</code>`,
                         r.PID, r.FilePath, extractIP(r.C2Server), r.ProcessName)
         }
 
-        // Footer
+        // Footer với căn cứ pháp lý tổng hợp
         sb.WriteString(`<div class="footer">`)
         sb.WriteString(`<p>BCY-VKS v1.0.0 - Báo cáo sinh tự động`)
         fmt.Fprintf(&sb, ` lúc %s</p>`, time.Now().Format("02/01/2006 15:04:05"))
         sb.WriteString(`<p>Lưu ý: Tất cả lệnh trong báo cáo cần chạy ở quyền Administrator (Win+X &gt; Command Prompt (Admin))</p>`)
         sb.WriteString(`<p>Cảnh báo pháp lý: Chỉ áp dụng trên hệ thống bạn được quyền kiểm soát. Việc chống giám định số có thể vi phạm pháp luật nếu không trong phạm vi diễn tập được cấp phép.</p>`)
+        
+        // === PHẦN CĂN CỨ PHÁP LÝ TỔNG HỢP ===
+        sb.WriteString(`<hr style="margin-top:30px;border-top:2px solid #8B0000;">`)
+        sb.WriteString(`<h2 style="color:#8B0000;">CĂN CỨ PHÁP LÝ TỔNG HỢP</h2>`)
+        sb.WriteString(`<p>Báo cáo này được lập theo quy định của các văn bản pháp luật sau:</p>`)
+        sb.WriteString(`<ul style="font-size:12px;line-height:1.6;">`)
+        sb.WriteString(`<li><strong>Luật An ninh mạng 2018</strong> - Điều 18 (Phòng chống vi phạm pháp luật về mạng), Điều 28 (Bảo đảm an toàn thông tin), Điều 29 (Phòng ngừa, ngăn chặn vi phạm)</li>`)
+        sb.WriteString(`<li><strong>Luật Bảo vệ bí mật nhà nước 2018</strong> - Điều 8 (Quản lý bí mật nhà nước), Điều 12 (Trách nhiệm bảo vệ bí mật)</li>`)
+        sb.WriteString(`<li><strong>Bộ luật Hình sự 2015 (sửa đổi, bổ sung 2017)</strong>:</li>`)
+        sb.WriteString(`<ul>`)
+        sb.WriteString(`<li>Điều 225 - Tội xâm phạm quyền sở hữu trí tuệ (phạt tù 06 tháng - 03 năm)</li>`)
+        sb.WriteString(`<li>Điều 288 - Tội vi phạm quy định về bảo mật thông tin (phạt tù 01 - 07 năm)</li>`)
+        sb.WriteString(`<li>Điều 289 - Tội đánh cắp thông tin (phạt tù 01 - 12 năm nếu rò rỉ bí mật nhà nước)</li>`)
+        sb.WriteString(`<li>Điều 290 - Tội phá rối hoạt động máy tính, mạng máy tính, dữ liệu số (phạt tù 01 - 07 năm)</li>`)
+        sb.WriteString(`</ul>`)
+        sb.WriteString(`<li><strong>Luật Sở hữu trí tuệ 2005</strong> (sửa đổi 2009) - Quyền tác giả, quyền liên quan</li>`)
+        sb.WriteString(`<li><strong>Nghị định 22/2018/NĐ-CP</strong> - Xử phạt vi phạm hành chính về quyền tác giả, quyền liên quan</li>`)
+        sb.WriteString(`<li><strong>Nghị định 15/2020/NĐ-CP</strong> - Xử phạt vi phạm hành chính trong lĩnh vực bưu chính, viễn thông, tần số vô tuyến điện, công nghệ thông tin, giao dịch điện tử</li>`)
+        sb.WriteString(`<li><strong>Quy định của Ban Cơ Yếu</strong> về bảo mật, an toàn thông tin, quản lý thiết bị ngoại vi</li>`)
+        sb.WriteString(`</ul>`)
+        
+        sb.WriteString(`<h3 style="color:#8B0000;margin-top:20px;">HÌNH THỨC XỬ LÝ THEO MỨC ĐỘ NGHIÊM TRỌNG</h3>`)
+        sb.WriteString(`<table style="border-collapse:collapse;width:100%;font-size:11px;margin-top:8px;">`)
+        sb.WriteString(`<tr style="background:#8B0000;color:white;"><th style="padding:6px;border:1px solid #ccc;">Mức độ</th><th style="padding:6px;border:1px solid #ccc;">Kỷ luật nội bộ</th><th style="padding:6px;border:1px solid #ccc;">Hành chính</th><th style="padding:6px;border:1px solid #ccc;">Hình sự</th></tr>`)
+        sb.WriteString(`<tr><td style="padding:6px;border:1px solid #ccc;"><strong>CRITICAL</strong></td><td style="padding:6px;border:1px solid #ccc;">Sa thải, cách chức</td><td style="padding:6px;border:1px solid #ccc;">Phạt 50-100 triệu</td><td style="padding:6px;border:1px solid #ccc;">Phạt tù 01-12 năm</td></tr>`)
+        sb.WriteString(`<tr><td style="padding:6px;border:1px solid #ccc;"><strong>HIGH</strong></td><td style="padding:6px;border:1px solid #ccc;">Cảnh cáo, cách chức</td><td style="padding:6px;border:1px solid #ccc;">Phạt 20-50 triệu</td><td style="padding:6px;border:1px solid #ccc;">Phạt tù 06 tháng - 07 năm</td></tr>`)
+        sb.WriteString(`<tr><td style="padding:6px;border:1px solid #ccc;"><strong>MEDIUM</strong></td><td style="padding:6px;border:1px solid #ccc;">Khiển trách</td><td style="padding:6px;border:1px solid #ccc;">Phạt 10-20 triệu</td><td style="padding:6px;border:1px solid #ccc;">Cảnh cáo</td></tr>`)
+        sb.WriteString(`<tr><td style="padding:6px;border:1px solid #ccc;"><strong>LOW</strong></td><td style="padding:6px;border:1px solid #ccc;">Nhắc nhở</td><td style="padding:6px;border:1px solid #ccc;">Phạt 5-10 triệu</td><td style="padding:6px;border:1px solid #ccc;">Không áp dụng</td></tr>`)
+        sb.WriteString(`</table>`)
+        
+        sb.WriteString(`<p style="margin-top:15px;font-size:11px;color:#666;">Ngày lập báo cáo: ` + time.Now().Format("02/01/2006") + `</p>`)
         sb.WriteString(`</div>`)
-
+        
         sb.WriteString(`</body></html>`)
 
         return path, os.WriteFile(path, []byte(sb.String()), 0o644)

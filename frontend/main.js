@@ -200,14 +200,10 @@ function renderBang4(records) {
   }
   document.getElementById('count-bang4').textContent = records.length + ' mục';
   tbody.innerHTML = records.map((r, i) => {
-    const sessCount = Array.isArray(r.sessions) ? r.sessions.length : 0;
-    const plugCount = r.plug_count || sessCount;
-    const histBtn = sessCount > 0
-      ? '<button class="btn-session" onclick="showSessionHistory(' + i + ')">📅 Xem ' + sessCount + ' lần</button>'
+    const sessionCount = r.sessions ? r.sessions.length : 0;
+    const sessionCell = sessionCount > 0
+      ? `<a href="#" onclick="showSessionHistory(${i}); return false;" class="session-link">${sessionCount} session${sessionCount > 1 ? 's' : ''} →</a>`
       : '<span class="cell-muted">—</span>';
-    const ongoingBadge = sessCount > 0 && !r.sessions[sessCount - 1].removal
-      ? '<span class="badge badge-green" title="Thiết bị đang cắm trên máy">ĐANG CẮM</span> '
-      : '';
     return `
     <tr>
       ${rowNumber(i)}
@@ -218,81 +214,85 @@ function renderBang4(records) {
       <td class="cell-mono">${escapeHtml(r.drive_letter || '—')}</td>
       <td class="cell-mono">${escapeHtml(r.first_plug || '—')}</td>
       <td class="cell-mono">${escapeHtml(r.last_plug || '—')}</td>
-      <td>${plugCount ? ongoingBadge + '<span class="badge badge-orange">' + plugCount + ' lần</span>' : '<span class="cell-muted">0</span>'}</td>
-      <td>${histBtn}</td>
+      <td><strong>${r.plug_count || 0}</strong></td>
       <td>${formatBool(r.badusb_warning)}</td>
+      <td>${sessionCell}</td>
       <td><pre class="cell-mono" style="white-space:pre-wrap;max-width:250px;font-size:10px;margin:0;font-family:Consolas,monospace;">${escapeHtml(r.recent_files_summary || '—')}</pre></td>
-    </tr>`;
-  }).join('');
+    </tr>
+  `}).join('');
 }
 
-// showSessionHistory mở modal hiển thị lịch sử TỪNG LẦN kết nối của thiết bị:
-// thời điểm cắm, thời điểm rút, thời lượng từng lần
-function showSessionHistory(i) {
-  const r = (lastResult && lastResult.bang4) ? lastResult.bang4[i] : null;
-  if (!r) return;
-  const sessions = Array.isArray(r.sessions) ? r.sessions : [];
-  const body = document.getElementById('modal-body');
-
-  let html = '<div class="session-summary">'
-    + '<p style="margin:0 0 8px;">Thiết bị: <strong>' + escapeHtml(r.vendor_model || r.hardware_id) + '</strong>'
-    + (r.vid_pid ? ' · VID/PID: <span class="cell-mono">' + escapeHtml(r.vid_pid) + '</span>' : '')
-    + (r.drive_letter ? ' · Ổ đĩa: <span class="cell-mono">' + escapeHtml(r.drive_letter) + '</span>' : '')
-    + '</p>'
-    + '<p style="margin:0 0 12px;">Tổng số lần cắm: <strong>' + (r.plug_count || sessions.length) + '</strong>'
-    + (r.first_plug ? ' · Lần đầu: <span class="cell-mono">' + escapeHtml(r.first_plug) + '</span>' : '')
-    + (r.last_plug ? ' · Lần cuối: <span class="cell-mono">' + escapeHtml(r.last_plug) + '</span>' : '')
-    + '</p></div>';
-
-  if (!sessions.length) {
-    html += '<p style="color:#8B0000;">Không truy vết được lịch sử từng lần kết nối. '
-      + 'Event Log Kernel-PnP có thể đã bị tắt hoặc bị xoá trên máy này.</p>';
+// showSessionHistory hiển thị popup lịch sử từng lần kết nối của thiết bị
+function showSessionHistory(recordIndex) {
+  if (!lastResult || !lastResult.bang4 || !lastResult.bang4[recordIndex]) {
+    alert('Không có dữ liệu session');
+    return;
+  }
+  const r = lastResult.bang4[recordIndex];
+  const sessions = r.sessions || [];
+  
+  const titleEl = document.getElementById('stat-detail-title');
+  const bodyEl = document.getElementById('stat-detail-body');
+  
+  titleEl.textContent = `Lịch sử kết nối: ${r.vendor_model || r.device_type} (${sessions.length} lần)`;
+  
+  if (sessions.length === 0) {
+    bodyEl.innerHTML = '<div class="stat-detail-empty">Không có dữ liệu lịch sử kết nối</div>';
   } else {
-    html += '<table class="session-table"><thead><tr>'
-      + '<th>#</th><th>Thời điểm cắm</th><th>Thời điểm rút</th><th>Thời lượng</th>'
-      + '</tr></thead><tbody>';
-    sessions.forEach((s, k) => {
-      const ongoing = !s.removal;
-      html += '<tr class="' + (ongoing ? 'session-ongoing' : '') + '">'
-        + '<td>' + (k + 1) + '</td>'
-        + '<td class="cell-mono">' + escapeHtml(s.arrival || '—') + '</td>'
-        + '<td class="cell-mono">' + (ongoing
-            ? '<span class="badge badge-green">ĐANG CẮM</span>'
-            : escapeHtml(s.removal)) + '</td>'
-        + '<td>' + escapeHtml(s.duration || sessionDuration(s.arrival, s.removal) || '—') + '</td>'
-        + '</tr>';
-    });
-    html += '</tbody></table>';
-    if (r.plug_count && r.plug_count > sessions.length) {
-      html += '<p class="cell-muted" style="font-size:11px;">Hiển thị ' + sessions.length
-        + '/' + r.plug_count + ' lần gần nhất (giới hạn số event Event Log giữ lại).</p>';
-    }
+    bodyEl.innerHTML = '<ul class="stat-detail-list">' + sessions.map((s, i) => {
+      const start = s.start_time ? formatDateTime(s.start_time) : '—';
+      const end = s.end_time ? formatDateTime(s.end_time) : '<span class="cell-ok">Đang cắm</span>';
+      const duration = calculateDuration(s.start_time, s.end_time);
+      return `
+        <li>
+          <span class="num">${i + 1}</span>
+          <div class="main">
+            <strong>Lần ${i + 1}</strong>
+            <span class="badge-sm" style="background:#631017;color:#fff;">${escapeHtml(s.drive_letter || '—')}</span>
+            <span class="badge-sm" style="background:#888;color:#fff;">${escapeHtml(s.source || '—')}</span>
+            <div class="meta">
+              Cắm: ${start} | Rút: ${end}<br>
+              Thời lượng: ${duration}
+            </div>
+          </div>
+        </li>
+      `;
+    }).join('') + '</ul>';
   }
-
-  if (r.recent_files_summary) {
-    html += '<div class="session-files"><strong>Dấu vết tệp liên quan (Recent / Jump Lists / gốc ổ đĩa):</strong><br>'
-      + escapeHtml(r.recent_files_summary) + '</div>';
-  }
-
-  document.getElementById('modal-title').textContent =
-    'Lịch sử kết nối từng lần — ' + (r.vendor_model || r.hardware_id);
-  body.innerHTML = html;
-  openModal('modal-popup');
+  openModal('modal-stat-detail');
 }
 
-// sessionDuration tính khoảng thời gian cắm từ 2 chuỗi "YYYY-MM-DD HH:mm:ss"
-function sessionDuration(arr, rem) {
-  if (!arr || !rem) return '';
-  const a = new Date(String(arr).replace(' ', 'T'));
-  const b = new Date(String(rem).replace(' ', 'T'));
-  if (isNaN(a.getTime()) || isNaN(b.getTime()) || b < a) return '';
-  const m = Math.round((b - a) / 60000);
-  if (m < 1) return '&lt; 1 phút';
-  if (m < 60) return m + ' phút';
-  const h = Math.floor(m / 60), mm = m % 60;
-  if (h < 24) return h + ' giờ' + (mm ? ' ' + mm + ' phút' : '');
-  const d = Math.floor(h / 24);
-  return d + ' ngày ' + (h % 24) + ' giờ';
+// formatDateTime định dạng thời gian dễ đọc
+function formatDateTime(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return iso;
+  }
+}
+
+// calculateDuration tính thời lượng giữa start và end
+function calculateDuration(start, end) {
+  if (!start) return '—';
+  if (!end) return 'Đang cắm';
+  try {
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s) || isNaN(e)) return '—';
+    const diffMs = e - s;
+    if (diffMs < 0) return '—';
+    const hours = Math.floor(diffMs / 3600000);
+    const minutes = Math.floor((diffMs % 3600000) / 60000);
+    if (hours > 0) {
+      return hours + ' giờ ' + minutes + ' phút';
+    }
+    return minutes + ' phút';
+  } catch (e) {
+    return '—';
+  }
 }
 
 function renderBang5(records) {
@@ -308,7 +308,7 @@ function renderBang5(records) {
       ${rowNumber(i)}
       <td class="cell-danger"><strong>${escapeHtml(r.process_name)}</strong></td>
       <td class="cell-mono">${r.pid}</td>
-      <td><span class="badge badge-red" title="${escapeHtml(r.reason || '')}">${escapeHtml(r.type)}</span></td>
+      <td><span class="badge badge-red">${escapeHtml(r.type)}</span></td>
       <td>${formatDangerLevel(r.danger_level)}</td>
       <td>${formatBooleanRunning(r.running_in_ram)}</td>
       <td class="cell-mono">${escapeHtml(r.file_path)}</td>
@@ -337,14 +337,381 @@ function formatDangerLevel(level) {
 
 function renderStats(stats) {
   if (!stats) return;
-  document.getElementById('stat-crack').textContent = stats.total_crack || 0;
-  document.getElementById('stat-ports').textContent = stats.open_ports || 0;
-  document.getElementById('stat-cve').textContent = stats.critical_cve || 0;
-  document.getElementById('stat-adapters').textContent = stats.adapters || 0;
-  document.getElementById('stat-usb').textContent = stats.peripherals || 0;
-  document.getElementById('stat-badusb').textContent = stats.badusb || 0;
-  document.getElementById('stat-keylogger').textContent = stats.keyloggers || 0;
-  document.getElementById('stat-duration').textContent = (stats.duration_sec || 0).toFixed(2) + 's';
+  
+  const tileValues = {
+    'stat-crack': stats.total_crack || 0,
+    'stat-ports': stats.open_ports || 0,
+    'stat-cve': stats.critical_cve || 0,
+    'stat-adapters': stats.adapters || 0,
+    'stat-usb': stats.peripherals || 0,
+    'stat-badusb': stats.badusb || 0,
+    'stat-keylogger': stats.keyloggers || 0,
+    'stat-duration': (stats.duration_sec || 0).toFixed(2) + 's',
+  };
+  
+  Object.entries(tileValues).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+    const tile = el ? el.closest('.stat-tile') : null;
+    if (tile) {
+      const numValue = parseInt(value, 10);
+      if (!isNaN(numValue) && numValue === 0 && id !== 'stat-duration') {
+        tile.classList.add('zero');
+        tile.classList.remove('alert');
+      } else if (!isNaN(numValue) && numValue > 0) {
+        tile.classList.remove('zero');
+        if (['stat-crack', 'stat-ports', 'stat-cve', 'stat-badusb', 'stat-keylogger'].includes(id)) {
+          tile.classList.add('alert');
+        }
+      }
+    }
+  });
+}
+
+// ============ Stat Detail Modal - popup khi click vào ô thống kê ============
+
+function showStatDetail(statType) {
+  if (!lastResult) {
+    alert('Chưa có dữ liệu quét. Vui lòng bấm nút "RÀ QUÉT TOÀN BỘ" trước.');
+    return;
+  }
+  
+  const titleEl = document.getElementById('stat-detail-title');
+  const bodyEl = document.getElementById('stat-detail-body');
+  let html = '';
+  let title = '';
+  
+  switch (statType) {
+    case 'crack':
+      // Tách thành 2 nhóm: bất hợp pháp và hợp pháp
+      const illegalSW = (lastResult.bang1 || []).filter(r => r.legal === false);
+      const legalSW = (lastResult.bang1 || []).filter(r => r.legal !== false);
+      title = `Chi tiết ${lastResult.bang1.length} phần mềm bản quyền phát hiện`;
+      if (lastResult.bang1.length > 0) {
+        title += ` (${illegalSW.length} bất hợp pháp, ${legalSW.length} hợp pháp)`;
+      }
+      html = renderCrackDetailList(lastResult.bang1);
+      break;
+    case 'ports':
+      title = `Chi tiết ${countOpenPorts()} cổng mạng nguy hiểm đang mở`;
+      html = renderPortsDetailList(lastResult.bang2);
+      break;
+    case 'cve':
+      title = `Chi tiết CVE có CVSS ≥ 7.0`;
+      html = renderCVEDetailList(lastResult.bang2);
+      break;
+    case 'adapters':
+      title = `Chi tiết ${lastResult.bang3.length} card mạng phát hiện`;
+      html = renderAdaptersDetailList(lastResult.bang3);
+      break;
+    case 'usb':
+      title = `Chi tiết ${lastResult.bang4.length} thiết bị ngoại vi`;
+      html = renderUSBDetailList(lastResult.bang4);
+      break;
+    case 'badusb':
+      title = `Chi tiết thiết bị BadUSB phát hiện`;
+      html = renderBadUSBDetailList(lastResult.bang4);
+      break;
+    case 'keylogger':
+      title = `Chi tiết Keylogger phát hiện`;
+      html = renderKeyloggerDetailList(lastResult.bang5);
+      break;
+    default:
+      title = 'Chi tiết';
+      html = '<div class="stat-detail-empty">Không có dữ liệu chi tiết</div>';
+  }
+  
+  titleEl.textContent = title;
+  bodyEl.innerHTML = html;
+  openModal('modal-stat-detail');
+}
+
+function countOpenPorts() {
+  if (!lastResult || !lastResult.bang2 || lastResult.bang2.length === 0) return 0;
+  const ports = lastResult.bang2[0].open_ports || '';
+  if (!ports) return 0;
+  return ports.split(',').filter(p => p.trim()).length;
+}
+
+function renderCrackDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện phần mềm bản quyền</div>';
+  }
+  // Sắp xếp: bất hợp pháp lên đầu, hợp pháp xuống cuối
+  const sorted = [...records].sort((a, b) => {
+    if (a.legal === false && b.legal !== false) return -1;
+    if (a.legal !== false && b.legal === false) return 1;
+    return 0;
+  });
+  return '<ul class="stat-detail-list">' + sorted.map((r, i) => {
+    const risk = assessLicenseRisk(r);
+    return `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.software_name || '—')}</strong>
+        ${r.legal === false ? '<span class="badge-sm" style="background:#dc143c;color:#fff;">BẤT HỢP PHÁP</span>' : '<span class="badge-sm" style="background:#2d7a3e;color:#fff;">HỢP PHÁP</span>'}
+        <span class="badge-sm" style="background:${risk.color};color:#fff;">${risk.level}</span>
+        <div class="meta">
+          Phiên bản: ${escapeHtml(r.version || '—')} | Product ID: ${escapeHtml(r.product_id || '—')}<br>
+          Kênh: ${escapeHtml(r.licensing_channel || '—')} | OEM Key: ${escapeHtml(r.bios_oem_key || '—')}<br>
+          ${r.crack_tool ? '⚠ Công cụ crack: ' + escapeHtml(r.crack_tool) : ''}
+          ${r.crack_path ? '<br>   Path: ' + escapeHtml(r.crack_path) : ''}
+        </div>
+        <div class="risk-box">
+          <strong>⚠ Đánh giá nguy cơ:</strong> ${risk.description}<br>
+          <strong>Căn cứ pháp lý:</strong> ${risk.legal}
+        </div>
+      </div>
+    </li>
+  `}).join('') + '</ul>';
+}
+
+// assessLicenseRisk đánh giá nguy cơ pháp lý cho phần mềm bản quyền
+function assessLicenseRisk(r) {
+  if (r.legal === false) {
+    // Có crack tool hoặc KMS lậu
+    if (r.crack_tool && r.crack_tool.toLowerCase().includes('kms')) {
+      return {
+        level: 'NGUY HIỂM CAO',
+        color: '#8B0000',
+        description: 'Sử dụng công cụ crack KMS để kích hoạt bản quyền lậu vi phạm Luật Sở hữu trí tuệ, có thể bị phạt hành chính 50-100 triệu đồng.',
+        legal: 'Luật Sở hữu trí tuệ 2005 (sửa đổi 2009); Nghị định 22/2018/NĐ-CP; Luật An ninh mạng 2018 Điều 28.'
+      };
+    }
+    if (r.crack_tool && r.crack_tool.toLowerCase().includes('adobe')) {
+      return {
+        level: 'NGUY HIỂM CAO',
+        color: '#8B0000',
+        description: 'Sử dụng phần mềm Adobe crack vi phạm quyền sở hữu trí tuệ, có thể bị phạt hành chính hoặc truy cứu trách nhiệm hình sự.',
+        legal: 'Luật Sở hữu trí tuệ; Bộ luật Hình sự 2015 (sửa đổi 2017) Điều 225.'
+      };
+    }
+    if (r.crack_tool) {
+      return {
+        level: 'NGUY HIỂM CAO',
+        color: '#8B0000',
+        description: 'Phát hiện công cụ crack phần mềm: ' + r.crack_tool + '. Vi phạm bản quyền phần mềm.',
+        legal: 'Luật Sở hữu trí tuệ 2005; Nghị định 22/2018/NĐ-CP; BLHS Điều 225.'
+      };
+    }
+    // Có CVE nghiêm trọng (Chrome/Edge/Java/OpenSSL)
+    if (r.crack_tool && r.crack_tool.toLowerCase().includes('cve')) {
+      return {
+        level: 'NGUY HIỂM TRUNG BÌNH',
+        color: '#B8860B',
+        description: 'Phần mềm có lỗ hổng CVE nghiêm trọng chưa vá. Cần cập nhật ngay.',
+        legal: 'Luật An ninh mạng 2018 Điều 29 (bảo đảm an toàn thông tin); Luật Bảo vệ bí mật nhà nước 2018.'
+      };
+    }
+    return {
+      level: 'CẦN KIỂM TRA',
+      color: '#888',
+      description: 'Phần mềm có dấu hiệu bất hợp pháp, cần kiểm tra giấy phép.',
+      legal: 'Luật Sở hữu trí tuệ; quy định cấp phép phần mềm của cơ quan.'
+    };
+  }
+  // Hợp pháp
+  return {
+    level: 'AN TOÀN',
+    color: '#2d7a3e',
+    description: 'Phần mềm có bản quyền hợp pháp, không phát hiện dấu hiệu vi phạm.',
+    legal: 'Tuân thủ Luật Sở hữu trí tuệ 2005.'
+  };
+}
+
+function renderPortsDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không có dữ liệu mạng</div>';
+  }
+  const r = records[0];
+  const ports = (r.open_ports || '').split(',').filter(p => p.trim());
+  if (ports.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện cổng nguy hiểm nào đang mở ✓</div>';
+  }
+  const portInfo = {
+    '21': { name: 'FTP', risk: 'CAO', desc: 'Giao thức FTP truyền dữ liệu không mã hoá, có thể bị sniff bắt cắp thông tin', legal: 'Luật An ninh mạng 2018 Điều 28 (bảo đảm an toàn thông tin)' },
+    '22': { name: 'SSH', risk: 'TRUNG BÌNH', desc: 'SSH mở ra ngoài có thể bị brute-force attack', legal: 'Luật An ninh mạng 2018 Điều 29' },
+    '23': { name: 'Telnet', risk: 'RẤT CAO', desc: 'Telnet truyền dữ liệu clear text, dễ bị sniff', legal: 'Luật An ninh mạng 2018 Điều 28; Nghị định 90/2023/NĐ-CP' },
+    '25': { name: 'SMTP', risk: 'TRUNG BÌNH', desc: 'SMTP mở có thể bị spam relay', legal: 'Nghị định 14/2018/NĐ-CP về bưu chính' },
+    '80': { name: 'HTTP', risk: 'TRUNG BÌNH', desc: 'HTTP truyền clear text', legal: 'Luật An ninh mạng 2018 Điều 28' },
+    '135': { name: 'MSRPC', risk: 'CAO', desc: 'MSRPC mở có thể bị khai thác DCOM', legal: 'Luật An ninh mạng 2018 Điều 29' },
+    '139': { name: 'NetBIOS-SSN', risk: 'CAO', desc: 'NetBIOS chia sẻ file, dễ bị rò rỉ thông tin', legal: 'Luật An ninh mạng 2018 Điều 28' },
+    '445': { name: 'SMB (EternalBlue)', risk: 'NGUY HIỂM CỰC CAO', desc: 'Cổng 445 mở + SMBv1 có thể bị EternalBlue RCE → WannaCry ransomware → mất dữ liệu vĩnh viễn', legal: 'BLHS 2015 Điều 288 (Tội vi phạm quy định về bảo mật thông tin); Luật An ninh mạng 2018 Điều 28, 29' },
+    '1433': { name: 'MSSQL', risk: 'RẤT CAO', desc: 'Cơ sở dữ liệu MSSQL mở ra ngoài có thể bị trộm dữ liệu', legal: 'Luật An ninh mạng 2018 Điều 28; Luật Bảo vệ bí mật nhà nước 2018 Điều 8' },
+    '3306': { name: 'MySQL', risk: 'RẤT CAO', desc: 'MySQL mở ra ngoài, có thể bị dump database', legal: 'Luật An ninh mạng 2018 Điều 28' },
+    '3389': { name: 'RDP (BlueKeep)', risk: 'NGUY HIỂM CỰC CAO', desc: 'RDP mở có thể bị BlueKeep RCE → chiếm quyền điều khiển máy từ xa → mất toàn bộ quyền kiểm soát', legal: 'BLHS 2015 Điều 288, 290 (Tội vi phạm quy định về bảo mật thông tin, Tội phá rối hoạt động máy tính); Luật An ninh mạng 2018 Điều 28' },
+    '5900': { name: 'VNC', risk: 'CAO', desc: 'VNC mở có thể bị chiếm quyền điều khiển desktop', legal: 'BLHS 2015 Điều 290; Luật An ninh mạng 2018' },
+    '8080': { name: 'HTTP-Alt', risk: 'TRUNG BÌNH', desc: 'Cổng 8080 mở, có thể có webapp cần kiểm tra', legal: 'Luật An ninh mạng 2018 Điều 29' },
+  };
+  return '<ul class="stat-detail-list">' + ports.map((p, i) => {
+    const port = p.trim();
+    const info = portInfo[port] || { name: 'Unknown', risk: 'KHÔNG XÁC ĐỊNH', desc: 'Cổng ít phổ biến, cần đánh giá thêm', legal: 'Luật An ninh mạng 2018' };
+    const riskColor = info.risk.includes('CỰC') ? '#8B0000' : (info.risk.includes('RẤT') ? '#dc143c' : (info.risk.includes('CAO') ? '#b8860b' : '#888'));
+    return `
+      <li>
+        <span class="num">${i + 1}</span>
+        <div class="main">
+          <strong>Cổng ${escapeHtml(port)}</strong> — ${escapeHtml(info.name)}
+          <span class="badge-sm" style="background:${riskColor};color:#fff;">${info.risk}</span>
+          <div class="meta">Trạng thái: ĐANG MỞ trên máy này</div>
+          <div class="risk-box">
+            <strong>⚠ Đánh giá nguy cơ:</strong> ${info.desc}<br>
+            <strong>Căn cứ pháp lý:</strong> ${info.legal}
+          </div>
+        </div>
+      </li>
+    `;
+  }).join('') + '</ul>';
+}
+
+function renderCVEDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không có dữ liệu CVE</div>';
+  }
+  const r = records[0];
+  if (!r.cve_id) {
+    return '<div class="stat-detail-empty">Không phát hiện CVE có CVSS ≥ 7.0 ✓</div>';
+  }
+  return `<ul class="stat-detail-list">
+    <li>
+      <span class="num">1</span>
+      <div class="main">
+        <strong>${escapeHtml(r.cve_id)}</strong>
+        <span class="badge-sm" style="background:#dc143c;color:#fff;">CVSS ${r.cvss_score ? r.cvss_score.toFixed(1) : '?'}</span>
+        <div class="meta">${escapeHtml(r.notes || '—')}</div>
+        <div class="meta" style="margin-top:6px;"><strong>Kết quả pentest:</strong> ${escapeHtml(r.exploit_result || '—')}</div>
+      </div>
+    </li>
+  </ul>`;
+}
+
+function renderAdaptersDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện card mạng</div>';
+  }
+  return '<ul class="stat-detail-list">' + records.map((r, i) => `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.device_name || '—')}</strong>
+        <span class="badge-sm" style="background:#631017;color:#fff;">${escapeHtml(r.adapter_type || '—')}</span>
+        <div class="meta">
+          Loại: ${escapeHtml(r.adapter_type || '—')} | Vị trí: ${escapeHtml(r.connection_pos || '—')}<br>
+          MAC: ${escapeHtml(r.mac || '—')} | Driver: ${escapeHtml(r.driver_status || '—')}<br>
+          ${r.ssid_list ? 'SSID đã kết nối: ' + escapeHtml(r.ssid_list) : ''}
+          ${r.last_connect ? '<br>Lần gần nhất: ' + escapeHtml(r.last_connect) : ''}
+        </div>
+      </div>
+    </li>
+  `).join('') + '</ul>';
+}
+
+function renderUSBDetailList(records) {
+  if (!records || records.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện thiết bị ngoại vi</div>';
+  }
+  return '<ul class="stat-detail-list">' + records.map((r, i) => `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.vendor_model || r.device_type || '—')}</strong>
+        ${r.badusb_warning ? '<span class="badge-sm" style="background:#dc143c;color:#fff;">BADUSB!</span>' : ''}
+        <div class="meta">
+          Loại: ${escapeHtml(r.device_type || '—')} | VID/PID: ${escapeHtml(r.vid_pid || '—')}<br>
+          Hardware ID: ${escapeHtml(r.hardware_id || '—')}<br>
+          Ổ đĩa: ${escapeHtml(r.drive_letter || '—')} | Số lần cắm: ${r.plug_count || 0}<br>
+          ${r.first_plug ? 'Lần đầu: ' + escapeHtml(r.first_plug) : ''}
+          ${r.last_plug ? ' | Lần cuối: ' + escapeHtml(r.last_plug) : ''}
+          ${r.recent_files_summary ? '<br><strong>Recent Files:</strong> ' + escapeHtml(r.recent_files_summary) : ''}
+        </div>
+      </div>
+    </li>
+  `).join('') + '</ul>';
+}
+
+function renderBadUSBDetailList(records) {
+  const badUSBs = (records || []).filter(r => r.badusb_warning);
+  if (badUSBs.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện thiết bị BadUSB ✓</div>';
+  }
+  return '<ul class="stat-detail-list">' + badUSBs.map((r, i) => `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.vendor_model || r.device_type || '—')}</strong>
+        <span class="badge-sm" style="background:#dc143c;color:#fff;">BADUSB</span>
+        <span class="badge-sm" style="background:#8B0000;color:#fff;">NGUY HIỂM CỰC CAO</span>
+        <div class="meta">
+          VID/PID: ${escapeHtml(r.vid_pid || '—')}<br>
+          Hardware ID: ${escapeHtml(r.hardware_id || '—')}<br>
+        </div>
+        <div class="risk-box">
+          <strong>⚠ Đánh giá nguy cơ:</strong> Thiết bị BadUSB có khả năng giả lập bàn phím tấn công tự động (Keystroke Injection). Khi cắm vào máy, nó có thể tự gõ lệnh PowerShell/CMD, cài backdoor, mở cổng reverse shell, download mã độc. Đây là phương pháp tấn công vật lý cực kỳ nguy hiểm.<br>
+          <strong>Căn cứ pháp lý:</strong> Bộ luật Hình sự 2015 Điều 290 (Tội phá rối hoạt động máy tính); Luật An ninh mạng 2018 Điều 18, 28; Quy định về quản lý thiết bị ngoại vi trong cơ quan nhà nước.<br>
+          <strong>Hình thức xử lý:</strong> TRÁCH NHIỆM HÌNH SỰ: Phạt tù 01-07 năm (Điều 290 BLHS); Thu giữ thiết bị; Cảnh giác nội bộ cơ quan; Báo cáo Ban Cơ yếu.
+        </div>
+      </div>
+    </li>
+  `).join('') + '</ul>';
+}
+
+function renderKeyloggerDetailList(records) {
+  const keyloggers = (records || []).filter(r => r.type === 'Keylogger');
+  if (keyloggers.length === 0) {
+    return '<div class="stat-detail-empty">Không phát hiện Keylogger ✓</div>';
+  }
+  return '<ul class="stat-detail-list">' + keyloggers.map((r, i) => {
+    const risk = assessMalwareRisk(r);
+    return `
+    <li>
+      <span class="num">${i + 1}</span>
+      <div class="main">
+        <strong>${escapeHtml(r.process_name || '—')}</strong>
+        <span class="badge-sm" style="background:#dc143c;color:#fff;">PID ${r.pid || '?'}</span>
+        ${r.danger_level ? '<span class="badge-sm" style="background:' + risk.color + ';color:#fff;">' + escapeHtml(r.danger_level) + '</span>' : ''}
+        <div class="meta">
+          Đường dẫn: ${escapeHtml(r.file_path || '—')}<br>
+          RAM: ${r.running_in_ram ? 'ĐANG CHẠY' : 'Tắt'} | C2: ${escapeHtml(r.c2_server || '—')}<br>
+          ${r.log_wipe_evidence ? '⚠ ' + escapeHtml(r.log_wipe_evidence) : ''}
+        </div>
+        <div class="risk-box">
+          <strong>⚠ Đánh giá nguy cơ:</strong> ${risk.description}<br>
+          <strong>Căn cứ pháp lý:</strong> ${risk.legal}<br>
+          <strong>Hình thức xử lý:</strong> ${risk.liability}
+        </div>
+      </div>
+    </li>
+  `}).join('') + '</ul>';
+}
+
+// assessMalwareRisk đánh giá nguy cơ pháp lý cho mã độc/keylogger
+function assessMalwareRisk(r) {
+  // Keylogger có C2 server đang chạy
+  if (r.c2_server && r.running_in_ram) {
+    return {
+      color: '#8B0000',
+      description: 'Keylogger ĐANG CHẠY trong RAM và có kết nối tới C2 server ' + r.c2_server + '. Dữ liệu gõ phím đang bị gửi đi real-time. Đây là tấn công gián điệp mạng nghiêm trọng, có thể làm rò rỉ bí mật nhà nước, mật khẩu, văn bản mật.',
+      legal: 'Bộ luật Hình sự 2015 (sửa đổi 2017) Điều 288 (Tội vi phạm quy định về bảo mật thông tin), Điều 289 (Tội đánh cắp thông tin), Điều 290 (Tội phá rối hoạt động máy tính); Luật An ninh mạng 2018 Điều 18, 28; Luật Bảo vệ bí mật nhà nước 2018.',
+      liability: 'TRÁCH NHIỆM HÌNH SỰ: Phạt tù từ 01 năm đến 07 năm (Điều 288 BLHS); Phạt tù từ 01 năm đến 12 năm nếu gây hậu quả nghiêm trọng (Điều 289 BLHS).'
+    };
+  }
+  // Keylogger chạy trong RAM nhưng chưa có C2
+  if (r.running_in_ram) {
+    return {
+      color: '#dc143c',
+      description: 'Keylogger ĐANG CHẠY trong RAM. Có thể đang ghi lại toàn bộ thao tác gõ phím của người dùng, có nguy cơ rò rỉ thông tin.',
+      legal: 'BLHS 2015 Điều 288, 289; Luật An ninh mạng 2018 Điều 28.',
+      liability: 'TRÁCH NHIỆM HÌNH SỰ: Phạt tù 01-07 năm (Điều 288); có thể bị kỷ luật công chức hoặc sa thải nếu vi phạm trong cơ quan nhà nước.'
+    };
+  }
+  // Keylogger có file nhưng không chạy
+  return {
+    color: '#b8860b',
+    description: 'Phát hiện file keylogger nhưng tiến trình KHÔNG chạy. Cần xoá file ngay và kiểm tra dấu vết hoạt động trước đó.',
+    legal: 'BLHS 2015 Điều 288 (chuẩn bị tội phạm); Luật An ninh mạng 2018 Điều 28.',
+    liability: 'TRÁCH NHIỆM HÀNH CHÍNH: Phạt tiền 20-50 triệu đồng (Nghị định 15/2020/NĐ-CP); Cảnh báo hoặc kỷ luật nếu trong cơ quan nhà nước.'
+  };
 }
 
 function renderResult(result) {
@@ -595,6 +962,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('anti-confirm').addEventListener('click', callAntiForensics);
   document.getElementById('progress-close').addEventListener('click', () => closeModal('modal-progress'));
   document.getElementById('progress-done').addEventListener('click', () => closeModal('modal-progress'));
+  
+  // Stat detail modal close buttons
+  document.getElementById('stat-detail-close').addEventListener('click', () => closeModal('modal-stat-detail'));
+  document.getElementById('stat-detail-done').addEventListener('click', () => closeModal('modal-stat-detail'));
+  
+  // Click vào stat tile để xem chi tiết
+  document.querySelectorAll('.stat-tile[data-stat]').forEach(tile => {
+    tile.addEventListener('click', () => {
+      const statType = tile.getAttribute('data-stat');
+      showStatDetail(statType);
+    });
+  });
 
   // Enter key để xác nhận anti-forensics
   document.getElementById('anti-confirm-input').addEventListener('keypress', (e) => {

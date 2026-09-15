@@ -2,52 +2,45 @@
 
 package hardware
 
-// friendlyNameForPNP stub cho non-Windows (dev mode dùng demo data)
-func friendlyNameForPNP(devID string) string { return "" }
-
-// scanCurrentPeripherals trả về dữ liệu demo trên môi trường non-Windows
-// (có đầy đủ Sessions + RecentFilesSummary để dev thấy được tính năng Bảng 4)
+// scanCurrentPeripherals demo data cho non-Windows
+// Bao gồm Sessions để demo UI hiển thị lịch sử kết nối
 func scanCurrentPeripherals() []PeripheralRec {
-        return []PeripheralRec{
-                {
-                        DeviceType:  "USB Flash Drive",
-                        VendorModel: "SanDisk Ultra Flair 64GB",
-                        HardwareID:  "disk&ven_sandisk&prod_ultra_flair&rev_1.00\\4c530001234567890123&0",
-                        VIDPID:      "VID_0781&PID_5590",
-                        DriveLetter: "E:",
-                        FirstPlug:   "2026-08-12 10:15:22",
-                        LastPlug:    "2026-09-11 15:08:01",
-                        PlugCount:   6,
-                        RecentFilesSummary: "8 shortcut Recent: bao-cao-q3.docx, danh-sach-can-bo.xlsx, anh-hoi-nghi.zip | " +
-                                "Gốc ổ E:: 18 mục, mới nhất: BAO-CAO-Q3.docx (11/09/2026 14:55)",
-                        Sessions: []ConnectSession{
-                                {Arrival: "2026-09-11 15:08:01", Removal: "", Duration: "—"},
-                                {Arrival: "2026-09-10 08:23:44", Removal: "2026-09-10 09:05:12", Duration: "41 phút"},
-                                {Arrival: "2026-09-05 14:02:10", Removal: "2026-09-05 14:47:39", Duration: "45 phút"},
-                                {Arrival: "2026-08-29 09:11:00", Removal: "2026-08-29 11:32:15", Duration: "2 giờ 21 phút"},
-                                {Arrival: "2026-08-20 16:40:33", Removal: "2026-08-20 16:44:58", Duration: "4 phút"},
-                                {Arrival: "2026-08-12 10:15:22", Removal: "2026-08-12 12:02:41", Duration: "1 giờ 47 phút"},
-                        },
-                },
-                {
-                        DeviceType:  "USB Mouse",
-                        VendorModel: "Logitech USB Optical Mouse",
-                        HardwareID:  "5&1f2e3d4c&0&3",
-                        VIDPID:      "VID_046D&PID_C077",
-                        FirstPlug:   "2026-08-12 10:14:55",
-                        LastPlug:    "2026-09-11 15:08:00",
-                        PlugCount:   3,
-                        Sessions: []ConnectSession{
-                                {Arrival: "2026-09-11 15:08:00", Removal: "", Duration: "—"},
-                                {Arrival: "2026-08-12 10:14:55", Removal: "2026-08-12 18:22:10", Duration: "8 giờ 7 phút"},
-                                {Arrival: "2026-08-12 09:50:01", Removal: "2026-08-12 10:01:23", Duration: "11 phút"},
-                        },
-                },
-        }
+	return []PeripheralRec{
+		{
+			DeviceType:  "USB Flash Drive",
+			VendorModel: "SanDisk Ultra Flair 64GB",
+			HardwareID:  "045E07C0123456789ABCDEF",
+			VIDPID:      "VID_0781&PID_5590",
+			DriveLetter: "E:",
+			FirstPlug:   "2026-08-12T10:15:22Z",
+			LastPlug:    "2026-09-11T15:08:01Z",
+			PlugCount:   14,
+			Sessions: []ConnectSession{
+				{StartTime: "2026-08-12T10:15:22Z", EndTime: "2026-08-12T11:30:00Z", DriveLetter: "E:", Source: "Demo"},
+				{StartTime: "2026-08-25T09:00:00Z", EndTime: "2026-08-25T09:45:00Z", DriveLetter: "F:", Source: "Demo"},
+				{StartTime: "2026-09-01T14:00:00Z", EndTime: "2026-09-01T16:30:00Z", DriveLetter: "E:", Source: "Demo"},
+				{StartTime: "2026-09-11T15:08:01Z", EndTime: "", DriveLetter: "E:", Source: "Demo"},
+			},
+		},
+		{
+			DeviceType:  "External HDD",
+			VendorModel: "Kingston DataTraveler 32GB",
+			HardwareID:  "09511234567890ABCDEF",
+			VIDPID:      "VID_0951&PID_1666",
+			DriveLetter: "F:",
+			FirstPlug:   "2026-07-01T08:00:00Z",
+			LastPlug:    "2026-09-10T20:15:00Z",
+			PlugCount:   8,
+			Sessions: []ConnectSession{
+				{StartTime: "2026-07-01T08:00:00Z", EndTime: "2026-07-01T10:00:00Z", DriveLetter: "F:", Source: "Demo"},
+				{StartTime: "2026-09-10T20:15:00Z", EndTime: "", DriveLetter: "F:", Source: "Demo"},
+			},
+		},
+	}
 }
 
-// scanPeripheralHistory trên non-Windows đã gộp sẵn trong demo ở trên
+// scanPeripheralHistory stub cho non-Windows
 func scanPeripheralHistory() []PeripheralRec { return nil }
 
-// buildRecentFilesSummary stub cho non-Windows
-func buildRecentFilesSummary(driveLetter string) string { return "" }
+// friendlyNameForPNP stub cho non-Windows (đã có trong vidpid.go đa nền tảng)
+// Không cần định nghĩa lại - vidpid.go đã có

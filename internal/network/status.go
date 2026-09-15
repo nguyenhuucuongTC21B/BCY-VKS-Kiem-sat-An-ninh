@@ -24,6 +24,11 @@ type NetworkRecord struct {
         CVSSScore         float64 `json:"cvss_score"`
         ExploitResult     string  `json:"exploit_result"`
         Notes             string  `json:"notes"`
+        // NEW fields bổ sung từ reference code
+        DNSCache          string  `json:"dns_cache"`           // DNS cache summary + suspicious
+        BrowserHistory    string  `json:"browser_history"`     // Browser history summary
+        LANConfig         string  `json:"lan_config"`          // SMBv1/LLMNR/NetBIOS status
+        DocumentLinks     string  `json:"document_links"`      // URLs trong tài liệu .docx/.pdf
 }
 
 // ScanAll chạy toàn bộ nhóm 2 và trả về slice NetworkRecord.

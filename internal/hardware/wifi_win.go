@@ -3,174 +3,172 @@
 package hardware
 
 import (
-        "bytes"
-        "os/exec"
-        "strings"
-        "time"
+	"bytes"
+	"os/exec"
+	"strings"
+	"time"
 
-        "golang.org/x/sys/windows/registry"
+	"golang.org/x/sys/windows/registry"
 )
 
 // getWirelessProfiles chạy netsh wlan show profiles để lấy SSID đã từng kết nối
 // Trả về chuỗi phân cách bằng phẩy
+// Fallback: đọc registry NetworkList\Profiles nếu netsh fail
 func getWirelessProfiles() string {
-        cmd := exec.Command("netsh", "wlan", "show", "profiles")
-        var stdout bytes.Buffer
-        cmd.Stdout = &stdout
-        if err := cmd.Run(); err != nil {
-                return readWirelessProfilesFromRegistry()
-        }
-        out := parseWirelessProfiles(stdout.String())
-        if out == "" {
-                // netsh chạy được nhưng locale lạ / không parse được -> dùng registry
-                out = readWirelessProfilesFromRegistry()
-        }
-        return out
+	cmd := exec.Command("netsh", "wlan", "show", "profiles")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		return readWirelessProfilesFromRegistry()
+	}
+	result := parseWirelessProfiles(stdout.String())
+	if result != "" {
+		return result
+	}
+	// Fallback nếu netsh không trả SSID
+	return readWirelessProfilesFromRegistry()
 }
 
 // parseWirelessProfiles tách output của netsh wlan show profiles
-// Tìm các dòng có dạng: "    All User Profile     : SSID_NAME"
+// Tìm các dòng có dạng: "    User profiles    :  SSID_NAME"
+// hoặc "    All User Profile     : SSID_NAME"  (locale EN)
 // hoặc locale VN: "    Tất cả người dùng     : SSID_NAME"
 func parseWirelessProfiles(s string) string {
-        var ssids []string
-        for _, line := range strings.Split(s, "\n") {
-                l := strings.TrimSpace(line)
-                // Tìm dấu ":" rồi lấy phần sau
-                idx := strings.Index(l, ":")
-                if idx < 0 {
-                        continue
-                }
-                // Phải chứa chữ "profile" hoặc "hồ sơ" để đảm bảo đúng dòng
-                ll := strings.ToLower(l)
-                if !strings.Contains(ll, "profile") && !strings.Contains(ll, "hồ sơ") {
-                        continue
-                }
-                ssid := strings.TrimSpace(l[idx+1:])
-                if ssid != "" {
-                        ssids = append(ssids, ssid)
-                }
-        }
-        return strings.Join(ssids, ",")
+	var ssids []string
+	for _, line := range strings.Split(s, "\n") {
+		l := strings.TrimSpace(line)
+		// Tìm dấu ":" rồi lấy phần sau
+		idx := strings.Index(l, ":")
+		if idx < 0 {
+			continue
+		}
+		// Phải chứa chữ "profile" hoặc "hồ sơ" để đảm bảo đúng dòng
+		ll := strings.ToLower(l)
+		if !strings.Contains(ll, "profile") && !strings.Contains(ll, "hồ sơ") {
+			continue
+		}
+		ssid := strings.TrimSpace(l[idx+1:])
+		if ssid != "" {
+			ssids = append(ssids, ssid)
+		}
+	}
+	return strings.Join(ssids, ",")
 }
 
-// readWirelessProfilesFromRegistry fallback khi netsh không chạy được:
-// đọc ProfileName từ HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Profiles
-// (NetworkList ghi lại mọi mạng Wi-Fi/LAN máy từng kết nối)
+// readWirelessProfilesFromRegistry fallback: đọc HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Profiles
+// Lấy ProfileName cho các profile có Type = 71 (Wi-Fi)
 func readWirelessProfilesFromRegistry() string {
-        key := `SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Profiles`
-        k, err := registry.OpenKey(registry.LOCAL_MACHINE, key,
-                registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-        if err != nil {
-                return ""
-        }
-        defer k.Close()
+	var ssids []string
+	key := `SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Profiles`
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, key,
+		registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	if err != nil {
+		return ""
+	}
+	defer k.Close()
 
-        names, _ := k.ReadSubKeyNames(-1)
-        if len(names) > 30 {
-                names = names[:30]
-        }
-        seen := map[string]bool{}
-        var ssids []string
-        for _, n := range names {
-                sub, err := registry.OpenKey(registry.LOCAL_MACHINE,
-                        key+`\`+n, registry.QUERY_VALUE|registry.WOW64_64KEY)
-                if err != nil {
-                        continue
-                }
-                name := ""
-                if v, _, err := sub.GetStringValue("ProfileName"); err == nil {
-                        name = strings.TrimSpace(v)
-                }
-                _ = sub.Close()
-                if name == "" || seen[strings.ToLower(name)] {
-                        continue
-                }
-                seen[strings.ToLower(name)] = true
-                ssids = append(ssids, name)
-        }
-        return strings.Join(ssids, ",")
+	names, err := k.ReadSubKeyNames(-1)
+	if err != nil || len(names) == 0 {
+		return ""
+	}
+
+	for _, n := range names {
+		sub, err := registry.OpenKey(registry.LOCAL_MACHINE,
+			key+`\`+n, registry.QUERY_VALUE|registry.WOW64_64KEY)
+		if err != nil {
+			continue
+		}
+		// Đọc ProfileName
+		profileName := ""
+		if v, _, err := sub.GetStringValue("ProfileName"); err == nil {
+			profileName = v
+		}
+		// Đọc Category - 0 = Wireless, 1 = Wired, 2 = Mobile Broadband
+		// Nếu muốn chỉ lấy Wi-Fi thì check Category == 0
+		// (nhưng để đầy đủ, lấy tất cả)
+		_ = sub.Close()
+		if profileName != "" {
+			ssids = append(ssids, profileName)
+		}
+	}
+	return strings.Join(ssids, ",")
 }
 
-// getWiFiLastConnect trả về thời điểm kết nối Wi-Fi gần nhất.
-//   - Nếu Wi-Fi đang connected (netsh show interfaces) -> "Đang kết nối (mới nhất)"
-//   - Ngược lại: đọc max(DateLastConnected) từ NetworkList\Profiles (FILETIME)
+// getWiFiLastConnect trả về thời gian kết nối Wi-Fi gần nhất (chuỗi RFC3339)
+// Đọc từ NetworkList\Profiles\DateLastConnected
 func getWiFiLastConnect() string {
-        if isWiFiConnectedNow() {
-                return "Đang kết nối (mới nhất)"
-        }
-        return latestDateLastConnected()
+	// Phương án 1: Đọc DateLastConnected từ NetworkList registry
+	lastConnect := readLastConnectFromNetworkList()
+	if lastConnect != "" {
+		return lastConnect
+	}
+
+	// Phương án 2: Fallback netsh wlan show interfaces
+	cmd := exec.Command("netsh", "wlan", "show", "interfaces")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		return ""
+	}
+	return parseLastConnect(stdout.String())
 }
 
-// isWiFiConnectedNow kiểm tra netsh wlan show interfaces có trạng thái connected
-// không (hỗ trợ cả locale EN và VN)
-func isWiFiConnectedNow() bool {
-        cmd := exec.Command("netsh", "wlan", "show", "interfaces")
-        var stdout bytes.Buffer
-        cmd.Stdout = &stdout
-        if err := cmd.Run(); err != nil {
-                return false
-        }
-        for _, line := range strings.Split(stdout.String(), "\n") {
-                idx := strings.Index(line, ":")
-                if idx < 0 {
-                        continue
-                }
-                left := strings.ToLower(strings.TrimSpace(line[:idx]))
-                right := strings.ToLower(strings.TrimSpace(line[idx+1:]))
-                isStateLine := strings.Contains(left, "state") || strings.Contains(left, "trạng thái")
-                if !isStateLine {
-                        continue
-                }
-                // Rà "disconnected" TRƯỚC vì nó chứa cả "connect"
-                if strings.Contains(right, "disconnected") || strings.Contains(right, "ngắt kết nối") ||
-                        strings.Contains(right, "không kết nối") {
-                        continue
-                }
-                if strings.Contains(right, "connected") || strings.Contains(right, "kết nối") {
-                        return true
-                }
-        }
-        return false
+// readLastConnectFromNetworkList đọc DateLastConnected từ NetworkList\Profiles
+// Trả về thời gian gần nhất (RFC3339)
+func readLastConnectFromNetworkList() string {
+	key := `SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Profiles`
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, key,
+		registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
+	if err != nil {
+		return ""
+	}
+	defer k.Close()
+
+	names, _ := k.ReadSubKeyNames(-1)
+	var latestTime time.Time
+
+	for _, n := range names {
+		sub, err := registry.OpenKey(registry.LOCAL_MACHINE,
+			key+`\`+n, registry.QUERY_VALUE|registry.WOW64_64KEY)
+		if err != nil {
+			continue
+		}
+		// DateLastConnected là FILETIME 8 bytes
+		v, _, err := sub.GetBinaryValue("DateLastConnected")
+		_ = sub.Close()
+		if err != nil || len(v) < 8 {
+			continue
+		}
+		// Parse FILETIME (little-endian 8 bytes)
+		ft := uint64(v[0]) | uint64(v[1])<<8 | uint64(v[2])<<16 | uint64(v[3])<<24 |
+			uint64(v[4])<<32 | uint64(v[5])<<40 | uint64(v[6])<<48 | uint64(v[7])<<56
+		if ft == 0 {
+			continue
+		}
+		// Convert FILETIME (100ns từ 1601) → Unix time (ns từ 1970)
+		// 116444736000000000 = số 100ns từ 1601 đến 1970
+		unixNanos := int64(ft-116444736000000000) * 100
+		if unixNanos < 0 {
+			continue
+		}
+		t := time.Unix(0, unixNanos)
+		if t.After(latestTime) {
+			latestTime = t
+		}
+	}
+
+	if latestTime.IsZero() {
+		return ""
+	}
+	return latestTime.UTC().Format(time.RFC3339)
 }
 
-// latestDateLastConnected duyệt NetworkList\Profiles, trả về thời điểm
-// DateLastConnected mới nhất (định dạng "2006-01-02 15:04").
-// Giá trị DateLastConnected là REG_BINARY 8-byte FILETIME.
-func latestDateLastConnected() string {
-        key := `SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Profiles`
-        k, err := registry.OpenKey(registry.LOCAL_MACHINE, key,
-                registry.ENUMERATE_SUB_KEYS|registry.WOW64_64KEY)
-        if err != nil {
-                return ""
-        }
-        defer k.Close()
-
-        names, _ := k.ReadSubKeyNames(-1)
-        var latest uint64
-        for _, n := range names {
-                sub, err := registry.OpenKey(registry.LOCAL_MACHINE,
-                        key+`\`+n, registry.QUERY_VALUE|registry.WOW64_64KEY)
-                if err != nil {
-                        continue
-                }
-                v, _, err := sub.GetBinaryValue("DateLastConnected")
-                _ = sub.Close()
-                if err != nil || len(v) < 8 {
-                        continue
-                }
-                ft := uint64(v[0]) | uint64(v[1])<<8 | uint64(v[2])<<16 | uint64(v[3])<<24 |
-                        uint64(v[4])<<32 | uint64(v[5])<<40 | uint64(v[6])<<48 | uint64(v[7])<<56
-                if ft > latest {
-                        latest = ft
-                }
-        }
-        if latest == 0 {
-                return ""
-        }
-        const epochDiff = uint64(116444736000000000)
-        if latest < epochDiff {
-                return ""
-        }
-        t := time.Unix(0, int64(latest-epochDiff)*100)
-        return t.Local().Format("2006-01-02 15:04")
+// parseLastConnect fallback nếu registry không có DateLastConnected
+// Đọc netsh wlan show interfaces → tìm "Connection mode" + "Radio state"
+func parseLastConnect(s string) string {
+	// netsh wlan show interfaces không trực tiếp trả về thời gian kết nối
+	// Trả về rỗng để frontend hiển thị "không rõ"
+	// (Đã đọc từ registry ở readLastConnectFromNetworkList)
+	_ = s
+	return ""
 }
